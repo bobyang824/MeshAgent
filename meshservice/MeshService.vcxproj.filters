@@ -27,9 +27,6 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="MeshService.ico">
-      <Filter>Resource Files</Filter>
-    </Image>
     <Image Include="mc.bmp">
       <Filter>Resource Files</Filter>
     </Image>
@@ -359,5 +356,8 @@
       <Filter>Microscript</Filter>
     </ClInclude>
     <ClInclude Include="stdafx.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="winhwapi.exe" />
   </ItemGroup>
 </Project>
