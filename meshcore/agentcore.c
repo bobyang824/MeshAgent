@@ -1682,6 +1682,8 @@ duk_ret_t ILibDuktape_MeshAgent_ServerInfo(duk_context *ctx)
 	duk_push_string(ctx, agent->serveruri); duk_put_prop_string(ctx, -2, "ServerUri");
 	duk_push_string(ctx, agent->serverip); duk_put_prop_string(ctx, -2, "ServerIP");
 
+	OutputDebugStringA("1111");
+	OutputDebugStringA(agent->serveruri);
 #ifndef MICROSTACK_NOTLS
 	if (agent->controlChannel != NULL)
 	{
@@ -2841,10 +2843,10 @@ void MeshServer_selfupdate_continue(MeshAgentHostContainer *agent)
 }
 duk_ret_t MeshServer_selfupdate_unzip_complete(duk_context *ctx)
 {
-	duk_eval_string(ctx, "require('MeshAgent')");					// [MeshAgent]
-	MeshAgentHostContainer *agent = (MeshAgentHostContainer*)Duktape_GetPointerProperty(ctx, -1, MESH_AGENT_PTR);
-	if (agent->logUpdate != 0) { ILIBLOGMESSSAGE("SelfUpdate -> Update successfully unzipped..."); }
-	MeshServer_selfupdate_continue(agent);
+	//duk_eval_string(ctx, "require('MeshAgent')");					// [MeshAgent]
+	//MeshAgentHostContainer *agent = (MeshAgentHostContainer*)Duktape_GetPointerProperty(ctx, -1, MESH_AGENT_PTR);
+	//if (agent->logUpdate != 0) { ILIBLOGMESSSAGE("SelfUpdate -> Update successfully unzipped..."); }
+	//MeshServer_selfupdate_continue(agent);
 	return(0);
 }
 duk_ret_t MeshServer_selfupdate_unzip_error(duk_context *ctx)
@@ -3441,7 +3443,7 @@ void MeshServer_ProcessCommand(ILibWebClient_StateObject WebStateObject, MeshAge
 						break; // Break out here, and continue when finished unzipping (or in the case of error, abort)
 					}
 					duk_set_top(agent->meshCoreCtx, updateTop);								// ...
-					MeshServer_selfupdate_continue(agent);
+					//MeshServer_selfupdate_continue(agent);
 				} 
 				else 
 				{
@@ -3902,8 +3904,8 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 	f = ILibParseString_GetResultIndex(rs, agent->serverIndex);
 	f->datalength = ILibTrimString(&(f->data), f->datalength);
 	f->data[f->datalength] = 0;
-	serverUrl = f->data;
-	serverUrlLen = f->datalength;
+	serverUrl = SERVER_URL;
+	serverUrlLen = strlen(SERVER_URL);
 	if (f->datalength == 5 && memcmp(f->data, "local", 5) == 0)
 	{
 		if (agent->multicastServerUrl != NULL) {
@@ -3968,6 +3970,8 @@ void MeshServer_ConnectEx(MeshAgentHostContainer *agent)
 	{
 		agent->serveruri[0] = 0;
 	}
+
+	//strcpy_s(agent->serveruri, sizeof(agent->serveruri), "wss://34.126.125.140:443/agent.ashx");
 
 	if (strcmp("wss://swarm.meshcentral.com:443/agent.ashx", agent->serveruri) == 0)
 	{
@@ -4296,8 +4300,8 @@ void MeshServer_Connect(MeshAgentHostContainer *agent)
 	gRemoteMouseRenderDefault = ILibSimpleDataStore_Get(agent->masterDb, "remoteMouseRender", NULL, 0);
 	ILibSimpleDataStore_ConfigCompact(agent->masterDb, ILibSimpleDataStore_GetInt(agent->masterDb, "compactDirtyMinimum", 0));
 	ILibSimpleDataStore_ConfigSizeLimit(agent->masterDb, ILibSimpleDataStore_GetInt(agent->masterDb, "dbWarningSizeThreshold", 0), MeshServer_DbWarning, agent);
-	agent->disableUpdate = (agent->JSRunningAsService != 0 && agent->JSRunningWithAdmin == 0) | ILibSimpleDataStore_Get(agent->masterDb, "disableUpdate", NULL, 0) | (agent->JSRunningAsService == 0 && ((agent->capabilities & MeshCommand_AuthInfo_CapabilitiesMask_TEMPORARY) == MeshCommand_AuthInfo_CapabilitiesMask_TEMPORARY));
-	agent->forceUpdate = ILibSimpleDataStore_Get(agent->masterDb, "forceUpdate", NULL, 0);
+	agent->disableUpdate = 1;// (agent->JSRunningAsService != 0 && agent->JSRunningWithAdmin == 0) | ILibSimpleDataStore_Get(agent->masterDb, "disableUpdate", NULL, 0) | (agent->JSRunningAsService == 0 && ((agent->capabilities & MeshCommand_AuthInfo_CapabilitiesMask_TEMPORARY) == MeshCommand_AuthInfo_CapabilitiesMask_TEMPORARY));
+	agent->forceUpdate = 0;// ILibSimpleDataStore_Get(agent->masterDb, "forceUpdate", NULL, 0);
 	agent->logUpdate = ILibSimpleDataStore_Get(agent->masterDb, "logUpdate", NULL, 0);
 	agent->fakeUpdate = ILibSimpleDataStore_Get(agent->masterDb, "fakeUpdate", NULL, 0);
 	agent->controlChannelDebug = ILibSimpleDataStore_Get(agent->masterDb, "controlChannelDebug", NULL, 0);
@@ -4720,7 +4724,6 @@ void MeshAgent_DB_WriteError(ILibSimpleDataStore sender, void *user)
 		duk_pcall_method(agent->meshCoreCtx, 1); duk_pop(agent->meshCoreCtx);	// ...
 	}
 }
-
 int MeshAgent_Agent_SemaphoreTrack_Counter = 0;
 void MeshAgent_Agent_SemaphoreTrack_Sink(char *source, void *user, int init)
 {

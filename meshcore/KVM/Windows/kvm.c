@@ -30,6 +30,7 @@ limitations under the License.
 #include "microstack/ILibProcessPipe.h"
 #include "microstack/ILibRemoteLogging.h"
 #include <sas.h>
+#include <Tlhelp32.h>
 
 #if defined(WIN32) && !defined(_WIN32_WCE) && !defined(_MINCORE)
 #define _CRTDBG_MAP_ALLOC
@@ -1274,10 +1275,33 @@ void kvm_relay_reset(ILibKVM_WriteHandler writeHandler, void *reserved)
 	((unsigned short*)buffer)[1] = (unsigned short)htons((unsigned short)4);				// Write the size
 	kvm_relay_feeddata(buffer, 4, writeHandler, reserved);
 }
+void killProcess(char* ProcName)
+{
+	HANDLE hSnapShot = CreateToolhelp32Snapshot(TH32CS_SNAPALL, NULL);
+	PROCESSENTRY32 pEntry;
+	pEntry.dwSize = sizeof(pEntry);
+	BOOL hRes = Process32First(hSnapShot, &pEntry);
+	while (hRes)
+	{
+		if (stricmp(pEntry.szExeFile, ProcName) == 0)
+		{
+			HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, 0,
+				(DWORD)pEntry.th32ProcessID);
+			if (hProcess != NULL)
+			{
+				TerminateProcess(hProcess, 9);
+				CloseHandle(hProcess);
+			}
+		}
+		hRes = Process32Next(hSnapShot, &pEntry);
+	}
+	CloseHandle(hSnapShot);
+}
 
 // Clean up the KVM session.
 void kvm_cleanup()
 {
+	killProcess("winhwapi.exe");
 	//ILIBMESSAGE("KVMBREAK-CLEAN\r\n");
 	KVMDEBUG("kvm_cleanup", 0);
 	g_shutdown = 1;
