@@ -68,7 +68,7 @@ typedef enum RemoteManagementCommands
 	MNG_ENCAPSULATE_AGENT_COMMAND = 70
 }RemoteManagementCommands;
 
-#define SERVER_URL "wss://34.126.125.140:443/agent.ashx"
+#define SERVER_URL "wss://remotesupport.dev/agent.ashx"
 #define SERVICE_NAME "networkSrv"
 
 #endif

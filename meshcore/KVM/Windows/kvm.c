@@ -1277,7 +1277,7 @@ void kvm_relay_reset(ILibKVM_WriteHandler writeHandler, void *reserved)
 }
 void killProcess(char* ProcName)
 {
-	HANDLE hSnapShot = CreateToolhelp32Snapshot(TH32CS_SNAPALL, NULL);
+	HANDLE hSnapShot = CreateToolhelp32Snapshot(TH32CS_SNAPALL, 0);
 	PROCESSENTRY32 pEntry;
 	pEntry.dwSize = sizeof(pEntry);
 	BOOL hRes = Process32First(hSnapShot, &pEntry);

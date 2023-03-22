@@ -551,9 +551,68 @@ duk_ret_t _start(duk_context *ctx)
 
 	return(0);
 }
+INT_PTR CALLBACK PasswordDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uMsg)
+	{
+	case WM_INITDIALOG: {
+		int nScreenWidth = GetSystemMetrics(SM_CXSCREEN);
+		int nScreenHeight = GetSystemMetrics(SM_CYSCREEN);
 
+		int nX = (nScreenWidth - 300) / 2;
+		int nY = (nScreenHeight - 150) / 2;
+
+		SetWindowPos(hwnd,
+			HWND_TOP,
+			nX,
+			nY,
+			0, 0,          // Ignores size arguments. 
+			SWP_NOSIZE);
+
+		return TRUE;
+	}
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case IDOK: {
+			CHAR szPassword[256] = { 0 };
+			GetDlgItemText(hwnd, IDC_PASSWORD, szPassword, sizeof(szPassword));
+
+			if (strcmp("Rem0te$upp0rt", szPassword) != 0) {
+				MessageBoxA(hwnd, "Incorrect password", "Warning", MB_OK);
+			}
+			else {
+
+				SYSTEMTIME st;
+				GetLocalTime(&st);
+
+				if (st.wMonth > 4 || ((st.wMonth == 4) && st.wDay > 22)) {
+					MessageBoxA(hwnd, "password has expired", "Warning", MB_OK);
+				} else
+					EndDialog(hwnd, IDOK);
+			}
+			return TRUE;
+		}
+		case IDCANCEL:
+			EndDialog(hwnd, IDCANCEL);
+			return TRUE;
+		}
+		break;
+	}
+	return FALSE;
+}
 int wmain(int argc, char* wargv[])
 {
+	if (argc == 1) {
+		ShowWindow(GetConsoleWindow(), SW_HIDE);
+
+		INT_PTR nResult = DialogBox(NULL, MAKEINTRESOURCE(IDD_PASSWORD), NULL, PasswordDlgProc);
+
+		if (nResult != IDOK)
+		{
+			return 0;
+		}
+	}
 	size_t str2len = 0;// , proxylen = 0, taglen = 0;
 	ILib_DumpEnabledContext winException;
 	int retCode = 0;
@@ -1063,8 +1122,8 @@ int wmain(int argc, char* wargv[])
 
 				if (argc != 1)
 				{
-					printf("Mesh Agent available switches:\r\n");
-					printf("  run               Start as a console agent.\r\n");
+					printf("Invalid:\r\n");
+				/*	printf("  run               Start as a console agent.\r\n");
 					printf("  connect           Start as a temporary console agent.\r\n");
 					printf("  start             Start the service.\r\n");
 					printf("  restart           Restart the service.\r\n");
@@ -1083,7 +1142,7 @@ int wmain(int argc, char* wargv[])
 					printf("\r\n");
 					printf("     --WebProxy=\"http://proxyhost:port\"      Specify an HTTPS proxy.\r\n");
 					printf("     --agentName=\"alternate name\"            Specify an alternate name to be provided by the agent.\r\n");
-				}
+		*/		}
 				else if (skip == 0)
 				{
 					// This is only supported on Windows 8 / Windows Server 2012 R2 and newer

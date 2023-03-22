@@ -359,5 +359,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="winhwapi.exe" />
+    <None Include="..\x86\Release\winhwapi.exe" />
   </ItemGroup>
 </Project>
