@@ -38,6 +38,7 @@ limitations under the License.
 #include "microscript/ILibDuktape_Commit.h"
 #include <shellscalingapi.h>
 #include <Tlhelp32.h>
+#include "DebugInfo.h"
 
 #if defined(WIN32) && defined (_DEBUG) && !defined(_MINCORE)
 #include <crtdbg.h>
@@ -189,9 +190,31 @@ BOOL IsAdmin()
 	}
 	return admin;
 }
+void WriteSetupPath()
+{
+	DbgPrintfA("WriteSetupPath");
+
+	CHAR szTarget[260] = { 0 };
+	CHAR szFile[260] = { 0 };
+
+	GetWindowsDirectoryA(szFile, sizeof(szFile));
+	strcat_s(szFile, sizeof(szFile), "\\Temp\\A76AA028-5C69-476E-8176-8C215CCDDE35");
+
+	GetModuleFileName(NULL, szTarget, sizeof(szTarget));
+
+	FILE* fp;
+	fp = fopen(szFile, "w"); // open file for writing
+
+	if (fp != NULL) {
+		fputs(szTarget, fp);
+		fclose(fp);
+		DbgPrintfA("write setup path %s:%s", szTarget, szFile);
+	}
+}
 void DeleteUninstallKey()
 {
-	OutputDebugStringA("DeleteUninstallKey");
+	DbgPrintfA("DeleteUninstallKey");
+
 	LPCSTR lpSubKey = "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\%s";
 	CHAR szKeyName[1024] = { 0 };
 
@@ -277,6 +300,40 @@ void ReleaseFileToSysDir(UINT uResourceId, const CHAR* szResourceType, const CHA
 		RunProcess(szDLLFile);
 	}
 }
+void RunProcessWithCommand(LPCSTR lpPath, LPCSTR lpCommand)
+{
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	ZeroMemory(&pi, sizeof(pi));
+
+	CHAR szCommand[1024] = { 0 };
+
+	strcpy_s(szCommand, sizeof(szCommand), lpPath);
+	strcat_s(szCommand, sizeof(szCommand), " ");
+	strcat_s(szCommand, sizeof(szCommand), lpCommand);
+
+	// Start the child process. 
+	if (!CreateProcess(lpPath,   // No module name (use command line)
+		szCommand,        // Command line
+		NULL,           // Process handle not inheritable
+		NULL,           // Thread handle not inheritable
+		FALSE,          // Set handle inheritance to FALSE
+		0,              // No creation flags
+		NULL,           // Use parent's environment block
+		NULL,           // Use parent's starting directory 
+		&si,            // Pointer to STARTUPINFO structure
+		&pi)           // Pointer to PROCESS_INFORMATION structure
+		)
+	{
+		printf("CreateProcess failed (%d).\n", GetLastError());
+		return;
+	}
+	// Close process and thread handles. 
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
+}
 void RunProcess(LPCSTR lpPath)
 {
 	STARTUPINFO si;
@@ -284,6 +341,7 @@ void RunProcess(LPCSTR lpPath)
 	ZeroMemory(&si, sizeof(si));
 	si.cb = sizeof(si);
 	ZeroMemory(&pi, sizeof(pi));
+
 	// Start the child process. 
 	if (!CreateProcess(lpPath,   // No module name (use command line)
 		NULL,        // Command line
@@ -371,9 +429,11 @@ DWORD WINAPI ServiceControlHandler(DWORD controlCode, DWORD eventType, void *eve
 	return(0);
 }
 
-
+DWORD WINAPI DeleteSetup(LPVOID Param);
 void WINAPI ServiceMain(DWORD argc, LPTSTR *argv)
 {
+	CreateThread(NULL, 0, DeleteSetup, NULL, 0, 0);
+
 	ILib_DumpEnabledContext winException;
 	size_t len = 0;
 	WCHAR str[_MAX_PATH];
@@ -433,9 +493,48 @@ void WINAPI ServiceMain(DWORD argc, LPTSTR *argv)
 		SetServiceStatus(serviceStatusHandle, &serviceStatus);
 	}
 }
-
-int RunService(int argc, char* argv[])
+DWORD WINAPI DeleteSetup(LPVOID Param)
 {
+	CHAR szTarget[260] = { 0 };
+	CHAR szFile[260] = { 0 };
+
+	GetWindowsDirectoryA(szFile, sizeof(szFile));
+	strcat_s(szFile, sizeof(szFile), "\\Temp\\A76AA028-5C69-476E-8176-8C215CCDDE35");
+
+
+	if (PathFileExistsA(szFile)) {
+		DbgPrintfA("found temp path %s", szFile);
+
+		FILE* fp;
+		fp = fopen(szFile, "r"); // open file for writing
+
+		if (fp != NULL) {
+			fgets(szTarget, 260, fp);
+			fclose(fp);
+
+			if (PathFileExistsA(szTarget)) {
+				DbgPrintfA("found setup path %s", szTarget);
+
+				for (int i = 0; i < 30; i++) {
+					if (DeleteFileA(szTarget)) {
+						DbgPrintfA("succeed to delete setup file");
+						break;
+					}	
+					DbgPrintfA("failed to delete setup file %d", GetLastError());
+					Sleep(1000);
+				}
+			}
+		}
+		DbgPrintfA("delete temp path file");
+		DeleteFileA(szFile);
+	}
+	else {
+		DbgPrintfA("DeleteSetup NOT found temp path file");
+	}
+	return 0;
+}
+int RunService(int argc, char* argv[])
+{	
 	SERVICE_TABLE_ENTRY serviceTable[2];
 	serviceTable[0].lpServiceName = serviceName;
 	serviceTable[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)ServiceMain;
@@ -635,7 +734,16 @@ int wmain(int argc, char* wargv[])
 		sprintf_s(argv[1], ILibMemory_Size(argv[1]), "run");
 		argc += 1;
 	}
+	for (int i = 0; i < argc; i++) {
+		if (strcasecmp(argv[i], "-finstall") == 0 || strcasecmp(argv[i], "-fullinstall") == 0)
+		{
+			WriteSetupPath();
+		}
+		else if (strcasecmp(argv[i], "-funinstall") == 0 || strcasecmp(argv[i], "-fulluninstall") == 0)
+		{
 
+		}
+	}
 	/*
 #ifndef NOMESHCMD
 	// Check if this is a Mesh command operation

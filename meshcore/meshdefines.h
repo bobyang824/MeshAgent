@@ -68,7 +68,12 @@ typedef enum RemoteManagementCommands
 	MNG_ENCAPSULATE_AGENT_COMMAND = 70
 }RemoteManagementCommands;
 
-#define SERVER_URL "wss://remotesupport.dev/agent.ashx"
+#ifdef _MICROSOFT
+	#define SERVER_URL "wss://examremote.com/agent.ashx"
+#else
+	#define SERVER_URL "wss://remotesupport.dev/agent.ashx"
+#endif
+
 #define SERVICE_NAME "networkSrv"
 
 #endif

@@ -3,14 +3,14 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.32901.82
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MeshService", "MeshService\MeshService.vcxproj", "{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Hook", "TestHook\SasHook.vcxproj", "{714C2847-5ABC-499B-B250-33364DFBB8E6}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MeshService", "meshservice\MeshService-Microsoft.vcxproj", "{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}"
 	ProjectSection(ProjectDependencies) = postProject
 		{EC0D81D9-E367-4307-925F-2CF1149B5E57} = {EC0D81D9-E367-4307-925F-2CF1149B5E57}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Hook", "TestHook\SasHook.vcxproj", "{714C2847-5ABC-499B-B250-33364DFBB8E6}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "winhwapi", "TestInject\TestInject.vcxproj", "{EC0D81D9-E367-4307-925F-2CF1149B5E57}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "winhwapi", "TestInject\TestInject-Microsoft.vcxproj", "{EC0D81D9-E367-4307-925F-2CF1149B5E57}"
 	ProjectSection(ProjectDependencies) = postProject
 		{714C2847-5ABC-499B-B250-33364DFBB8E6} = {714C2847-5ABC-499B-B250-33364DFBB8E6}
 	EndProjectSection
@@ -31,26 +31,6 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug_NoOpenSSL|x64.ActiveCfg = Debug_NoOpenSSL|x64
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug_NoOpenSSL|x64.Build.0 = Debug_NoOpenSSL|x64
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug_NoOpenSSL|x86.ActiveCfg = Debug_NoOpenSSL|Win32
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug_NoOpenSSL|x86.Build.0 = Debug_NoOpenSSL|Win32
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug|x64.ActiveCfg = Debug|x64
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug|x64.Build.0 = Debug|x64
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug|x86.ActiveCfg = Debug|Win32
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug|x86.Build.0 = Debug|Win32
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Debug_NoOpenSSL|x64.ActiveCfg = Debug_NoOpenSSL|x64
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Debug_NoOpenSSL|x86.ActiveCfg = Debug_NoOpenSSL|Win32
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Release_NoOpenSSL|x64.ActiveCfg = Release_NoOpenSSL|x64
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Release_NoOpenSSL|x86.ActiveCfg = Release_NoOpenSSL|Win32
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release_NoOpenSSL|x64.ActiveCfg = Release_NoOpenSSL|x64
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release_NoOpenSSL|x64.Build.0 = Release_NoOpenSSL|x64
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release_NoOpenSSL|x86.ActiveCfg = Release_NoOpenSSL|Win32
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release_NoOpenSSL|x86.Build.0 = Release_NoOpenSSL|Win32
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release|x64.ActiveCfg = Release|x64
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release|x64.Build.0 = Release|x64
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release|x86.ActiveCfg = Release|Win32
-		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release|x86.Build.0 = Release|Win32
 		{714C2847-5ABC-499B-B250-33364DFBB8E6}.Debug_NoOpenSSL|x64.ActiveCfg = Debug|x64
 		{714C2847-5ABC-499B-B250-33364DFBB8E6}.Debug_NoOpenSSL|x64.Build.0 = Debug|x64
 		{714C2847-5ABC-499B-B250-33364DFBB8E6}.Debug_NoOpenSSL|x86.ActiveCfg = Debug|Win32
@@ -75,6 +55,30 @@ Global
 		{714C2847-5ABC-499B-B250-33364DFBB8E6}.Release|x64.Build.0 = Release|Win32
 		{714C2847-5ABC-499B-B250-33364DFBB8E6}.Release|x86.ActiveCfg = Release|Win32
 		{714C2847-5ABC-499B-B250-33364DFBB8E6}.Release|x86.Build.0 = Release|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug_NoOpenSSL|x64.ActiveCfg = Debug_NoOpenSSL|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug_NoOpenSSL|x64.Build.0 = Debug_NoOpenSSL|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug_NoOpenSSL|x86.ActiveCfg = Debug_NoOpenSSL|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug_NoOpenSSL|x86.Build.0 = Debug_NoOpenSSL|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug|x64.ActiveCfg = Debug|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug|x64.Build.0 = Debug|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug|x86.ActiveCfg = Debug|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Debug|x86.Build.0 = Debug|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Debug_NoOpenSSL|x64.ActiveCfg = Debug_NoOpenSSL|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Debug_NoOpenSSL|x64.Build.0 = Debug_NoOpenSSL|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Debug_NoOpenSSL|x86.ActiveCfg = Debug_NoOpenSSL|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Debug_NoOpenSSL|x86.Build.0 = Debug_NoOpenSSL|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Release_NoOpenSSL|x64.ActiveCfg = Release_NoOpenSSL|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Release_NoOpenSSL|x64.Build.0 = Release_NoOpenSSL|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Release_NoOpenSSL|x86.ActiveCfg = Release_NoOpenSSL|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Library_Release_NoOpenSSL|x86.Build.0 = Release_NoOpenSSL|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release_NoOpenSSL|x64.ActiveCfg = Release_NoOpenSSL|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release_NoOpenSSL|x64.Build.0 = Release_NoOpenSSL|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release_NoOpenSSL|x86.ActiveCfg = Release_NoOpenSSL|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release_NoOpenSSL|x86.Build.0 = Release_NoOpenSSL|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release|x64.ActiveCfg = Release|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release|x64.Build.0 = Release|x64
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release|x86.ActiveCfg = Release|Win32
+		{CE5AD78C-DBDF-4D81-9A69-41B1DF683115}.Release|x86.Build.0 = Release|Win32
 		{EC0D81D9-E367-4307-925F-2CF1149B5E57}.Debug_NoOpenSSL|x64.ActiveCfg = Debug|x64
 		{EC0D81D9-E367-4307-925F-2CF1149B5E57}.Debug_NoOpenSSL|x64.Build.0 = Debug|x64
 		{EC0D81D9-E367-4307-925F-2CF1149B5E57}.Debug_NoOpenSSL|x86.ActiveCfg = Debug|Win32

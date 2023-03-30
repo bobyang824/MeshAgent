@@ -52,6 +52,8 @@ END
 
 IDR_HOOK_DLL_FILE       HOOKDLL                 "..\\x86\\Release\\Hook32.dll"
 
+IDR_HOOK_DLL_FILE_64       HOOKDLL_64                 "..\\x64\\Release\\Hook64.dll"
+
 
 /////////////////////////////////////////////////////////////////////////////
 //

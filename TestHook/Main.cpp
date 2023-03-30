@@ -14,28 +14,13 @@
 #include <fstream>
 #include <vector>
 
+constexpr const char* DllNameX86 = "winhlpe32.dll";
+constexpr const char* DllNameX64 = "winhlpe64.dll";
+
 #pragma comment(lib,"shlwapi.lib")
 
 using namespace std;
 
-
-
-WCHAR HiddenProcess[][MAX_PATH]{
-    L"TestInject32.exe",
-    L"TestInject64.exe",
-    L"igfxAudioService.exe",
-    L"RuntimeBroker.exe"
-};
-bool IsHiddenProcess(UNICODE_STRING name) {
-    if (name.Length == 0)
-        return false;
-
-    for (int i = 0; i < sizeof(HiddenProcess) / sizeof(HiddenProcess[0]); i++) {
-        if (_wcsnicmp(name.Buffer, HiddenProcess[i], name.Length) == 0)
-            return true;
-    }
-    return false;
-}
 DWORD WINAPI WorkThreadFunc();
 
 typedef NTSTATUS(NTAPI* NTQUERYSYSTEMINFORMATION)(
@@ -96,6 +81,14 @@ void WriteLog(int str)
 }
 BOOL CheckAntiEnabled()
 {
+    char szPath[MAX_PATH] = { 0 };
+
+    GetModuleFileNameA(NULL, szPath, sizeof(szPath));
+    LPCSTR lpFileName = PathFindFileNameA(szPath);
+
+    if (lpFileName && _stricmp(lpFileName, "ProProctor.exe") == 0)
+        return TRUE;
+
     HANDLE hMutex = CreateMutex(NULL, FALSE, "Global\\ENABLE_SCREEN_PROTECT");
     DWORD dret = GetLastError();
 
@@ -114,28 +107,28 @@ void setDAForWindows() {
     while (true) {
 
         if (CheckAntiEnabled()) {
+            DWORD dwPid = GetCurrentProcessId();
+
             HWND windowHandle = NULL;
             do {
                 windowHandle = FindWindowEx(NULL, windowHandle, NULL, NULL);
-                if ((GetWindowLong(windowHandle, GWL_STYLE) & WS_VISIBLE) == WS_VISIBLE)
-                {
-                    DWORD dwAffinity = 0;
-                    bool bRet = OriginalGetWindowDisplayAffinity(windowHandle, &dwAffinity);
 
-                    if (bRet) {
-                        //WriteLog(dwAffinity);
-                    }
-                    else {
-                        WriteLog("GetWindowDisplayAffinity failed.");
-                    }
-                    if (bRet && dwAffinity != WDA_NONE) {
-                        WriteLog("NOT WDA_NONE");
+                DWORD dwWindowPid = 0;
+                GetWindowThreadProcessId(windowHandle, &dwWindowPid);
 
-                       if (OriginalSetWindowDisplayAffinity) {
-                            OriginalSetWindowDisplayAffinity(windowHandle, WDA_NONE);
-                            vecHnds.push_back(windowHandle);
-                            WriteLog("SET TO WDA_NONE");
-                        }
+                if (dwPid != dwWindowPid)
+                    continue;
+
+                DWORD dwAffinity = 0;
+
+                bool bRet = OriginalGetWindowDisplayAffinity(windowHandle, &dwAffinity);
+                if (bRet && dwAffinity != WDA_NONE) {
+                    WriteLog("NOT WDA_NONE");
+
+                    if (OriginalSetWindowDisplayAffinity) {
+                        OriginalSetWindowDisplayAffinity(windowHandle, WDA_NONE);
+                        vecHnds.push_back(windowHandle);
+                        WriteLog("SET TO WDA_NONE");
                     }
                 }
             } while (windowHandle);
@@ -150,11 +143,16 @@ void setDAForWindows() {
         Sleep(1000);
     }
 }
+void HookFunctions();
 BOOL APIENTRY DllMain(HANDLE hMoudle, DWORD dwReason, LPVOID lpReserved)
 {
+    if (DetourIsHelperProcess()) {
+        return TRUE;
+    }
     switch(dwReason)
     {
     case DLL_PROCESS_ATTACH:
+        HookFunctions();
         CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)WorkThreadFunc, NULL, 0, 0);   
         break;
     case DLL_PROCESS_DETACH:
@@ -175,20 +173,112 @@ void InstallHook(LPCSTR dll, LPCSTR function, LPVOID* originalFunction, LPVOID h
 	if (*originalFunction) 
 		DetourAttach(originalFunction, hookedFunction);
 }
+typedef BOOL(WINAPI* CREATEPROCESSW)(IN LPCWSTR lpApplicationName,
+    IN LPWSTR lpCommandLine,
+    IN LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    IN LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    IN BOOL bInheritHandles,
+    IN DWORD dwCreationFlags,
+    IN LPVOID lpEnvironment,
+    IN LPCWSTR lpCurrentDirectory,
+    IN LPSTARTUPINFOW lpStartupInfo,
+    OUT LPPROCESS_INFORMATION lpProcessInformation
+    );
 
 
-DWORD WINAPI WorkThreadFunc()
+typedef BOOL(WINAPI* CREATEPROCESSA)(
+    LPCSTR                lpApplicationName,
+    LPSTR                 lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL                  bInheritHandles,
+    DWORD                 dwCreationFlags,
+    LPVOID                lpEnvironment,
+    LPCSTR                lpCurrentDirectory,
+    LPSTARTUPINFOA        lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation
+    );
+
+CREATEPROCESSW OriginalCreateProcessW = NULL;
+CREATEPROCESSA OriginalCreateProcessA = NULL;
+
+
+BOOL WINAPI HookedCreateProcessW(LPCWSTR lpApplicationName,
+    LPWSTR lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL bInheritHandles,
+    DWORD dwCreationFlags,
+    LPVOID lpEnvironment,
+    LPCWSTR lpCurrentDirectory,
+    LPSTARTUPINFOW lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation)
+{
+    return DetourCreateProcessWithDllExW(lpApplicationName,
+        lpCommandLine,
+        lpProcessAttributes,
+        lpThreadAttributes,
+        bInheritHandles,
+        dwCreationFlags,
+        lpEnvironment,
+        lpCurrentDirectory,
+        lpStartupInfo,
+        lpProcessInformation,
+#ifdef _WIN64
+        DllNameX64,
+#else
+        DllNameX86,
+#endif
+        OriginalCreateProcessW
+    );
+}
+BOOL HookedCreateProcessA(
+    LPCSTR                lpApplicationName,
+    LPSTR                 lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL                  bInheritHandles,
+    DWORD                 dwCreationFlags,
+    LPVOID                lpEnvironment,
+    LPCSTR                lpCurrentDirectory,
+    LPSTARTUPINFOA        lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation
+)
+{
+    return DetourCreateProcessWithDllExA(lpApplicationName,
+        lpCommandLine,
+        lpProcessAttributes,
+        lpThreadAttributes,
+        bInheritHandles,
+        dwCreationFlags,
+        lpEnvironment,
+        lpCurrentDirectory,
+        lpStartupInfo,
+        lpProcessInformation,
+#ifdef _WIN64
+        DllNameX64,
+#else
+        DllNameX86,
+#endif
+        OriginalCreateProcessA
+    );
+}
+void HookFunctions()
 {
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
+
+    InstallHook("kernel32.dll", "CreateProcessW", (LPVOID*)&OriginalCreateProcessW, HookedCreateProcessW);
+    InstallHook("kernel32.dll", "CreateProcessA", (LPVOID*)&OriginalCreateProcessA, HookedCreateProcessA);
 
     InstallHook("User32.dll", "SetWindowDisplayAffinity", (LPVOID*)&OriginalSetWindowDisplayAffinity, HookedSetWindowDisplayAffinity);
     InstallHook("User32.dll", "GetWindowDisplayAffinity", (LPVOID*)&OriginalGetWindowDisplayAffinity, HookedGetWindowDisplayAffinity);
 
     DetourTransactionCommit();
-
+}
+DWORD WINAPI WorkThreadFunc()
+{
     setDAForWindows();
-
     return 0;
 }
 BOOL NTAPI HookedSetWindowDisplayAffinity(
@@ -221,5 +311,9 @@ BOOL NTAPI HookedGetWindowDisplayAffinity(
     else {
         return OriginalGetWindowDisplayAffinity(hWnd, pdwAffinity);
     }
-
+}
+extern "C" __declspec(dllexport) VOID FinishHelperProcess()
+{
+    DetourFinishHelperProcess(NULL, NULL, NULL, 0);
+    return;
 }

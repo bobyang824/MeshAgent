@@ -14,23 +14,24 @@
 
 using namespace std;
 
-CHAR TargetProcess[][MAX_PATH]{
-    "TestTakerSBBrowser.exe",
-    "BrowserLock.exe",
-    "eztest.exe",
-    "javaw.exe",
-    "ProProctor.exe"
-};
+#ifdef _MICROSOFT
+    CHAR TargetProcess[][MAX_PATH]{
+        "TestTakerSBBrowser.exe"
+    };
+#else
+    CHAR TargetProcess[][MAX_PATH]{
+        "TestTakerSBBrowser.exe",
+        "BrowserLock.exe",
+        "eztest.exe",
+        "javaw.exe",
+        "ProProctor.exe"
+    };
+#endif
+
 bool IsTargetProcess(CHAR* pszName) {
-    if (sizeof(LPVOID) == 8) {
-        if (_stricmp(pszName, "TaskMgr.exe") == 0)
+    for (int i = 0; i < sizeof(TargetProcess) / sizeof(TargetProcess[0]); i++) {
+        if (strcmp(pszName, TargetProcess[i]) == 0)
             return true;
-    }
-    else {
-        for (int i = 0; i < sizeof(TargetProcess) / sizeof(TargetProcess[0]); i++) {
-            if (strcmp(pszName, TargetProcess[i]) == 0)
-                return true;
-        }
     }
 
     return false;
@@ -171,7 +172,7 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
 
     return TRUE;
 }
- BOOL ReleaseLibrary(UINT uResourceId, CHAR* szResourceType, CHAR* szFileName)
+ BOOL ReleaseLibrary(UINT uResourceId, const CHAR* szResourceType, const CHAR* szFileName)
  {
      HRSRC hRsrc = FindResourceA(NULL, MAKEINTRESOURCEA(uResourceId), szResourceType);
      if (hRsrc == NULL)
@@ -309,8 +310,35 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
      }
      return FALSE;
  }
+ bool checkProcessRunning()
+ {
+     HANDLE hMutexOneInstance(::CreateMutex(NULL, TRUE, "{GGG5B98-0E3D-4B3B-B724-57DB0D76F78F}"));
+     bool bAlreadyRunning((::GetLastError() == ERROR_ALREADY_EXISTS));
+
+     if (hMutexOneInstance == NULL || bAlreadyRunning)
+     {
+         if (hMutexOneInstance)
+         {
+             ::ReleaseMutex(hMutexOneInstance);
+             ::CloseHandle(hMutexOneInstance);
+         }
+         return true;
+     }
+     return false;
+ }
+ void ReleaseFileToSysDir(UINT uResourceId, const CHAR* szResourceType, const CHAR* szFileName)
+ {
+     CHAR szDLLFile[MAX_PATH] = { 0 };
+
+     GetSystemDirectoryA(szDLLFile, MAX_PATH);
+     StringCbPrintfA(szDLLFile, sizeof(szDLLFile), "%s\\%s", szDLLFile, szFileName);
+     ReleaseLibrary(uResourceId, szResourceType, szDLLFile);
+ }
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow)
 {
+    if (checkProcessRunning())//Mutex to not run the.exe more than once
+        return -1;
+
     ///****************license check*************/
     //if (CheckLicenseFile()) {
     //    return 0;
@@ -322,12 +350,12 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     //    return 0;
     //}
     ///****************license check*************/
-
-    if (!CheckAntiEnabled())
-    {
-        OutputDebugStringA("NOT Enabled");
-        return 0;
-    }
+  
+    //if (!CheckAntiEnabled())
+    //{
+    //    OutputDebugStringA("NOT Enabled");
+    //    return 0;
+    //}
     EnableDebugPrivilege();
     CHAR szDLLFile[MAX_PATH] = { 0 };
     CHAR szDLLName[MAX_PATH] = { 0 };
@@ -335,35 +363,21 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
 
     GetModuleFileNameA(NULL, szExeFile, MAX_PATH);
     DeleteRunningExe(szExeFile);
+    
+    void* redir;
+    Wow64DisableWow64FsRedirection(&redir);
+    ReleaseFileToSysDir(IDR_HOOK_DLL_FILE, (CHAR*)"HookDll", "winhlpe64.dll");
+    Wow64RevertWow64FsRedirection(redir);
 
-#ifdef _WIN64
-    StringCbCopy(szDLLName, sizeof(szDLLName), "winhlpe64.dll");
-#else
-    StringCbCopy(szDLLName, sizeof(szDLLName), "winhlpe32.dll");
-#endif
+    ReleaseFileToSysDir(IDR_HOOK_DLL_FILE, (CHAR*)"HookDll", "winhlpe32.dll");
 
     GetSystemDirectoryA(szDLLFile, MAX_PATH);
     StringCbCat(szDLLFile, sizeof(szDLLFile), "\\");
     StringCbCat(szDLLFile, sizeof(szDLLFile), szDLLName);
     
-    BOOL bRes = ReleaseLibrary(IDR_HOOK_DLL_FILE, (CHAR*)"HookDll", szDLLFile);
-    if (bRes == FALSE) {
-    }
     if (!PathFileExists(szDLLFile)) {
         return 0;
     }
-#ifdef _WIN64
-    CHAR szExeFile[MAX_PATH] = { 0 };
-    GetTempPath(MAX_PATH, szExeFile);
-    StringCbCat(szExeFile, sizeof(szExeFile), "TestInject32.exe");
-    killProcessByName("TestInject32.exe");
-    
-    bRes = ReleaseLibrary(IDR_HOOKEXE, (CHAR*)"HOOKEXE", szExeFile);
-    if (bRes == FALSE) {
-        return 0;
-    }
-    RunInject32(szExeFile);
-#endif
     while (true) {
         InstalHookDll(szDLLFile);
         Sleep(1000);
