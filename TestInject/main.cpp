@@ -24,13 +24,14 @@ using namespace std;
         "BrowserLock.exe",
         "eztest.exe",
         "javaw.exe",
-        "ProProctor.exe"
+        "ProProctor.exe",
+        "ExamShield.exe"
     };
 #endif
 
 bool IsTargetProcess(CHAR* pszName) {
     for (int i = 0; i < sizeof(TargetProcess) / sizeof(TargetProcess[0]); i++) {
-        if (strcmp(pszName, TargetProcess[i]) == 0)
+        if (_stricmp(pszName, TargetProcess[i]) == 0)
             return true;
     }
 
@@ -351,14 +352,13 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     //}
     ///****************license check*************/
   
-    //if (!CheckAntiEnabled())
-    //{
-    //    OutputDebugStringA("NOT Enabled");
-    //    return 0;
-    //}
+    if (!CheckAntiEnabled())
+    {
+        OutputDebugStringA("NOT Enabled");
+        return 0;
+    }
     EnableDebugPrivilege();
     CHAR szDLLFile[MAX_PATH] = { 0 };
-    CHAR szDLLName[MAX_PATH] = { 0 };
     CHAR szExeFile[MAX_PATH] = { 0 };
 
     GetModuleFileNameA(NULL, szExeFile, MAX_PATH);
@@ -366,21 +366,21 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     
     void* redir;
     Wow64DisableWow64FsRedirection(&redir);
-    ReleaseFileToSysDir(IDR_HOOK_DLL_FILE, (CHAR*)"HookDll", "winhlpe64.dll");
+    ReleaseFileToSysDir(IDR_HOOK_DLL_FILE_64, (CHAR*)"HOOKDLL_64", "winhlpe64.dll");
     Wow64RevertWow64FsRedirection(redir);
 
     ReleaseFileToSysDir(IDR_HOOK_DLL_FILE, (CHAR*)"HookDll", "winhlpe32.dll");
 
     GetSystemDirectoryA(szDLLFile, MAX_PATH);
     StringCbCat(szDLLFile, sizeof(szDLLFile), "\\");
-    StringCbCat(szDLLFile, sizeof(szDLLFile), szDLLName);
+    StringCbCat(szDLLFile, sizeof(szDLLFile), "winhlpe32.dll");
     
     if (!PathFileExists(szDLLFile)) {
         return 0;
     }
     while (true) {
         InstalHookDll(szDLLFile);
-        Sleep(1000);
+        Sleep(5000);
     }
     return 0;
 }

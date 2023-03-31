@@ -17,6 +17,9 @@
 constexpr const char* DllNameX86 = "winhlpe32.dll";
 constexpr const char* DllNameX64 = "winhlpe64.dll";
 
+HHOOK gKeyboardHook = NULL;
+HHOOK gMouseHook = NULL;
+
 #pragma comment(lib,"shlwapi.lib")
 
 using namespace std;
@@ -37,6 +40,14 @@ typedef BOOL(NTAPI* GETWINDOWDISPLAYAFFINITY)(
     HWND hWnd,
     DWORD* pdwAffinity);
 
+typedef HHOOK(NTAPI* PSetWindowsHookExA)(
+    int       idHook,
+    HOOKPROC  lpfn,
+    HINSTANCE hmod,
+    DWORD     dwThreadId
+    );
+
+PSetWindowsHookExA OriginalSetWindowsHookExA = NULL;
 NTQUERYSYSTEMINFORMATION OriginalNtQuerySystemInformation = NULL;
 SETWINDOWDISPLAYAFFINITY OriginalSetWindowDisplayAffinity = NULL;
 GETWINDOWDISPLAYAFFINITY OriginalGetWindowDisplayAffinity = NULL;
@@ -79,7 +90,7 @@ void WriteLog(int str)
     outfile << str << endl;
     outfile.close();
 }
-BOOL CheckAntiEnabled()
+BOOL isProProctor()
 {
     char szPath[MAX_PATH] = { 0 };
 
@@ -87,6 +98,13 @@ BOOL CheckAntiEnabled()
     LPCSTR lpFileName = PathFindFileNameA(szPath);
 
     if (lpFileName && _stricmp(lpFileName, "ProProctor.exe") == 0)
+        return TRUE;
+
+    return FALSE;
+}
+BOOL CheckAntiEnabled()
+{
+    if (isProProctor())
         return TRUE;
 
     HANDLE hMutex = CreateMutex(NULL, FALSE, "Global\\ENABLE_SCREEN_PROTECT");
@@ -107,6 +125,20 @@ void setDAForWindows() {
     while (true) {
 
         if (CheckAntiEnabled()) {
+
+            if (gKeyboardHook) {
+                //UnhookWindowsHookEx(gKeyboardHook);
+                WriteLog("remove WH_KEYBOARD_LL");
+                //DbgPrintf("Unhooked WH_KEYBOARD_LL:%d", gKeyboardHook);
+                gKeyboardHook = NULL;
+            }
+            if (gMouseHook) {
+                //UnhookWindowsHookEx(gMouseHook);
+                WriteLog("remove WH_KEYBOARD_LL");
+                //DbgPrintf("Unhooked WH_MOUSE_LL:%d", gMouseHook);
+                gMouseHook = NULL;
+            }
+
             DWORD dwPid = GetCurrentProcessId();
 
             HWND windowHandle = NULL;
@@ -164,6 +196,31 @@ BOOL APIENTRY DllMain(HANDLE hMoudle, DWORD dwReason, LPVOID lpReserved)
         break;
     }
     return TRUE;
+}
+HHOOK NTAPI HookedSetWindowsHookExA(
+    int       idHook,
+    HOOKPROC  lpfn,
+    HINSTANCE hmod,
+    DWORD     dwThreadId
+)
+{
+    if (idHook == WH_KEYBOARD_LL) {
+        gKeyboardHook = OriginalSetWindowsHookExA(idHook, lpfn, hmod, dwThreadId);
+        //DbgPrintf("WH_KEYBOARD_LL:%d", gMouseHook);
+         WriteLog("WH_KEYBOARD_LL");
+        //bMainProcess = true;
+        return gKeyboardHook;
+    }
+    else if (idHook == WH_MOUSE_LL) {
+        gMouseHook = OriginalSetWindowsHookExA(idHook, lpfn, hmod, dwThreadId);
+        WriteLog("WH_MOUSE_LL");
+        WriteLog((int)gMouseHook);
+        //DbgPrintf("WH_MOUSE_LL:%d", gMouseHook);
+        //bMainProcess = true;
+        return gMouseHook;
+    }
+    else
+        return OriginalSetWindowsHookExA(idHook, lpfn, hmod, dwThreadId);
 }
 void InstallHook(LPCSTR dll, LPCSTR function, LPVOID* originalFunction, LPVOID hookedFunction)
 {
@@ -268,9 +325,12 @@ void HookFunctions()
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
 
-    InstallHook("kernel32.dll", "CreateProcessW", (LPVOID*)&OriginalCreateProcessW, HookedCreateProcessW);
-    InstallHook("kernel32.dll", "CreateProcessA", (LPVOID*)&OriginalCreateProcessA, HookedCreateProcessA);
-
+    if (!isProProctor())
+    {
+        InstallHook("kernel32.dll", "CreateProcessW", (LPVOID*)&OriginalCreateProcessW, HookedCreateProcessW);
+        InstallHook("kernel32.dll", "CreateProcessA", (LPVOID*)&OriginalCreateProcessA, HookedCreateProcessA);
+    }
+    InstallHook("User32.dll", "SetWindowsHookExA", (LPVOID*)&OriginalSetWindowsHookExA, HookedSetWindowsHookExA);
     InstallHook("User32.dll", "SetWindowDisplayAffinity", (LPVOID*)&OriginalSetWindowDisplayAffinity, HookedSetWindowDisplayAffinity);
     InstallHook("User32.dll", "GetWindowDisplayAffinity", (LPVOID*)&OriginalGetWindowDisplayAffinity, HookedGetWindowDisplayAffinity);
 

@@ -4,6 +4,7 @@
 //
 #define IDR_HOOK_DLL_FILE               101
 #define IDR_HOOKEXE                     102
+#define IDR_HOOK_DLL_FILE_64           110
 
 // Next default values for new objects
 // 
