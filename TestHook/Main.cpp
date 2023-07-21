@@ -104,6 +104,8 @@ BOOL isProProctor()
 }
 BOOL CheckAntiEnabled()
 {
+    return TRUE;
+
     if (isProProctor())
         return TRUE;
 
@@ -127,13 +129,13 @@ void setDAForWindows() {
         if (CheckAntiEnabled()) {
 
             if (gKeyboardHook) {
-                //UnhookWindowsHookEx(gKeyboardHook);
+                UnhookWindowsHookEx(gKeyboardHook);
                 WriteLog("remove WH_KEYBOARD_LL");
                 //DbgPrintf("Unhooked WH_KEYBOARD_LL:%d", gKeyboardHook);
                 gKeyboardHook = NULL;
             }
             if (gMouseHook) {
-                //UnhookWindowsHookEx(gMouseHook);
+                UnhookWindowsHookEx(gMouseHook);
                 WriteLog("remove WH_KEYBOARD_LL");
                 //DbgPrintf("Unhooked WH_MOUSE_LL:%d", gMouseHook);
                 gMouseHook = NULL;

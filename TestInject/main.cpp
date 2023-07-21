@@ -16,7 +16,8 @@ using namespace std;
 
 #ifdef _MICROSOFT
     CHAR TargetProcess[][MAX_PATH]{
-        "TestTakerSBBrowser.exe"
+        "TestTakerSBBrowser.exe",
+        "BrowserLock.exe"
     };
 #else
     CHAR TargetProcess[][MAX_PATH]{
@@ -300,6 +301,8 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
  }
  BOOL CheckAntiEnabled()
  {
+     return TRUE;
+
      HANDLE hMutex = CreateMutex(NULL, FALSE, "Global\\ENABLE_SCREEN_PROTECT");
      DWORD dret = GetLastError();
 
@@ -339,18 +342,6 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
 {
     if (checkProcessRunning())//Mutex to not run the.exe more than once
         return -1;
-
-    ///****************license check*************/
-    //if (CheckLicenseFile()) {
-    //    return 0;
-    //}
-    //SYSTEMTIME st;
-    //GetLocalTime(&st);
-    //if (st.wMonth > 3) {
-    //    CreateLicenseFile();
-    //    return 0;
-    //}
-    ///****************license check*************/
   
     if (!CheckAntiEnabled())
     {
