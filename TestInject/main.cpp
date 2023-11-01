@@ -9,15 +9,21 @@
 #include <Iphlpapi.h>
 #include <Tlhelp32.h>
 #include "resource2.h"
+#include <filesystem>
+#include <iostream>
+#include <fstream>
+#include <Psapi.h>
 
 #pragma comment(lib,"shlwapi.lib")
 
+namespace fs = std::filesystem;
 using namespace std;
 
 #ifdef _MICROSOFT
     CHAR TargetProcess[][MAX_PATH]{
         "TestTakerSBBrowser.exe",
-        "BrowserLock.exe"
+        "BrowserLock.exe",
+        "javaw.exe"
     };
 #else
     CHAR TargetProcess[][MAX_PATH]{
@@ -26,7 +32,9 @@ using namespace std;
         "eztest.exe",
         "javaw.exe",
         "ProProctor.exe",
-        "ExamShield.exe"
+        "ExamShield.exe",
+        "LockDownBrowserOEM.exe",
+        "msedgewebview2.exe"
     };
 #endif
 
@@ -338,6 +346,169 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
      StringCbPrintfA(szDLLFile, sizeof(szDLLFile), "%s\\%s", szDLLFile, szFileName);
      ReleaseLibrary(uResourceId, szResourceType, szDLLFile);
  }
+ void WriteLog(const char* str)
+ {
+     char szTemp[MAX_PATH] = { 0 };
+     //GetWindowsDirectoryA(szTemp, sizeof(szTemp));
+     strcpy(szTemp, "c:\\test.log");
+
+     CHAR szDLLFile[MAX_PATH] = { 0 };
+     CHAR szDLLName[MAX_PATH] = { 0 };
+
+     ofstream outfile;
+     outfile.open(szTemp, ios::app);
+     outfile << str << endl;
+     outfile.close();
+ }
+ void WriteLog(int str)
+ {
+     char szTemp[MAX_PATH] = { 0 };
+     GetWindowsDirectoryA(szTemp, sizeof(szTemp));
+     //GetWindowsDirectoryA(szTemp, sizeof(szTemp));
+     strcpy(szTemp, "c:\\test.log");
+     ofstream outfile;
+     outfile.open(szTemp, ios::app);
+     outfile << str << endl;
+     outfile.close();
+ }
+ BOOL WINAPI Inject(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES pSecAttr) {
+
+     BOOL fOk = FALSE; // Assume that the function fails
+     HANDLE hProcess = NULL, hThread = NULL;
+     PSTR pszLibFileRemote = NULL;
+
+     __try
+     {
+         hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcessId);
+
+         if (hProcess == NULL)
+             __leave;
+
+         // Calculate the number of bytes needed for the DLL's pathname
+         int cch = 1 + strlen(pszLibFile);
+
+         // Allocate space in the remote process for the pathname
+         pszLibFileRemote = (PSTR)VirtualAllocEx(hProcess, NULL, cch, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+         if (pszLibFileRemote == NULL)
+             __leave;
+
+         // Copy the DLL's pathname to the remote process's address space
+         if (!WriteProcessMemory(hProcess, pszLibFileRemote, (PVOID)pszLibFile, cch, NULL))
+             __leave;
+
+         // Get the real address of LoadLibraryW in Kernel32.dll
+         PTHREAD_START_ROUTINE pfnThreadRtn = (PTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandle("Kernel32"), "LoadLibraryA");
+
+         if (pfnThreadRtn == NULL)
+             __leave;
+
+         HANDLE hRemoteThread = CreateRemoteThread(hProcess, NULL, NULL, pfnThreadRtn, pszLibFileRemote, NULL, NULL);
+
+         if (hRemoteThread == NULL)
+             __leave;
+         // Wait until the remote thread is done loading the dll.
+         WaitForSingleObject(hRemoteThread, INFINITE);
+         fOk = true;
+     }
+
+     __finally
+     {
+         if (pszLibFileRemote != NULL)
+             VirtualFreeEx(hProcess, pszLibFileRemote, 0, MEM_RELEASE);
+
+         if (hThread != NULL)
+             CloseHandle(hThread);
+
+         if (hProcess != NULL)
+             CloseHandle(hProcess);
+     }
+
+     return(fOk);
+ }
+ BOOL InjectToProcess(DWORD ProcessID, fs::path dll)
+ {
+     string strDllName = dll.filename().string();
+     MODULEENTRY32 ModuleEntry;
+     HANDLE hModule = INVALID_HANDLE_VALUE;
+     ModuleEntry.dwSize = sizeof(ModuleEntry);
+     bool bExist = false;
+
+     hModule = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, ProcessID);
+     BOOL bNextModule = Module32First(hModule, &ModuleEntry);
+
+     while (bNextModule)
+     {
+         if (_stricmp(ModuleEntry.szModule, strDllName.c_str()) == 0)
+         {
+             bExist = true;
+             break;
+         }
+         bNextModule = Module32Next(hModule, &ModuleEntry);
+     }
+     if (!bExist)
+     {
+         Inject(ProcessID, dll.string().c_str(), NULL);
+     }
+     CloseHandle(hModule);
+
+     return TRUE;
+ }
+ void AntiWindowDisplayAffinity(const fs::path& dll)
+ {
+     HWND windowHandle = NULL;
+     do {
+         windowHandle = FindWindowEx(NULL, windowHandle, NULL, NULL);
+
+         if ((GetWindowLong(windowHandle, GWL_STYLE) & WS_VISIBLE) == WS_VISIBLE) {
+             DWORD dwAffinity = 0;
+             bool bRet = GetWindowDisplayAffinity(windowHandle, &dwAffinity);
+
+             if (bRet && dwAffinity != WDA_NONE) {
+                 DWORD dwWindowPid = 0;
+                 if (GetWindowThreadProcessId(windowHandle, &dwWindowPid)) {
+
+                     HANDLE Handle = OpenProcess(
+                         PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+                         FALSE,
+                         dwWindowPid
+                     );
+                     CHAR Buffer[MAX_PATH];
+
+                     if (Handle) {
+                         GetModuleFileNameEx(Handle, 0, Buffer, MAX_PATH);
+                         CloseHandle(Handle);
+                     }
+                     WriteLog("find protected windows:");
+                     WriteLog(dwWindowPid);
+                     WriteLog(Buffer);
+                    // DbgPrintfA("find process,PID:%d, Path:%s", dwWindowPid, Buffer);
+                     InjectToProcess(dwWindowPid, dll);
+                 }
+             }
+         }
+     } while (windowHandle);
+ }
+ BOOL InjectToProcess(LPCSTR lpProcessName, fs::path& dll)
+ {
+     HANDLE hSnapshot = NULL;
+     PROCESSENTRY32 pe;
+
+     hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+     pe.dwSize = sizeof(pe);
+
+     Process32First(hSnapshot, &pe);
+     do
+     {
+         if (_stricmp(lpProcessName, pe.szExeFile) == 0)
+         {
+             InjectToProcess(pe.th32ProcessID, dll);
+         }
+     } while (Process32Next(hSnapshot, &pe));
+
+     CloseHandle(hSnapshot);
+
+     return TRUE;
+ }
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow)
 {
     if (checkProcessRunning())//Mutex to not run the.exe more than once
@@ -345,6 +516,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
   
     if (!CheckAntiEnabled())
     {
+        WriteLog("NOT Enabled");
         OutputDebugStringA("NOT Enabled");
         return 0;
     }
@@ -367,10 +539,14 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     StringCbCat(szDLLFile, sizeof(szDLLFile), "winhlpe32.dll");
     
     if (!PathFileExists(szDLLFile)) {
+        WriteLog("dll not found");
         return 0;
     }
+    WriteLog("start......");
     while (true) {
+        AntiWindowDisplayAffinity(szDLLFile);
         InstalHookDll(szDLLFile);
+        //InstalHookDll(szDLLFile);
         Sleep(5000);
     }
     return 0;

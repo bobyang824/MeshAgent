@@ -13,6 +13,8 @@
 #include "detours.h"
 #include <fstream>
 #include <vector>
+#include <psapi.h>
+#include <TlHelp32.h>
 
 constexpr const char* DllNameX86 = "winhlpe32.dll";
 constexpr const char* DllNameX64 = "winhlpe64.dll";
@@ -40,17 +42,39 @@ typedef BOOL(NTAPI* GETWINDOWDISPLAYAFFINITY)(
     HWND hWnd,
     DWORD* pdwAffinity);
 
+
+typedef BOOL(NTAPI* PTerminateProcess)(HANDLE hProcess, UINT uExitCode);
+
 typedef HHOOK(NTAPI* PSetWindowsHookExA)(
     int       idHook,
     HOOKPROC  lpfn,
     HINSTANCE hmod,
     DWORD     dwThreadId
     );
+typedef BOOL(WINAPI* PProcess32Next)(
+    HANDLE hSnapshot,
+    LPPROCESSENTRY32 lppe
+    );
+BOOL WINAPI MyProcess32Next(
+    HANDLE hSnapshot,
+    LPPROCESSENTRY32 lppe
+);
+PProcess32Next pRealProcess32Next = NULL;
 
-PSetWindowsHookExA OriginalSetWindowsHookExA = NULL;
+typedef BOOL(WINAPI* PProcess32NextW)(
+    HANDLE hSnapshot,
+    LPPROCESSENTRY32W lppe
+    );
+BOOL WINAPI MyProcess32NextW(
+    HANDLE hSnapshot,
+    LPPROCESSENTRY32W lppe
+);
+PProcess32NextW pRealProcess32NextW = NULL;
 NTQUERYSYSTEMINFORMATION OriginalNtQuerySystemInformation = NULL;
+PSetWindowsHookExA OriginalSetWindowsHookExA = NULL;
 SETWINDOWDISPLAYAFFINITY OriginalSetWindowDisplayAffinity = NULL;
 GETWINDOWDISPLAYAFFINITY OriginalGetWindowDisplayAffinity = NULL;
+PTerminateProcess OriginalTerminateProcess = NULL;
 
 NTSTATUS NTAPI HookedNtQuerySystemInformation(
     SYSTEM_INFORMATION_CLASS systemInformationClass, 
@@ -65,6 +89,24 @@ BOOL NTAPI HookedSetWindowDisplayAffinity(
 BOOL NTAPI HookedGetWindowDisplayAffinity(
     HWND  hWnd,
     DWORD* pdwAffinity);
+
+typedef HDESK(NTAPI* CREATEDESKTOPW)(
+    LPCWSTR               lpszDesktop,
+    LPCWSTR               lpszDevice,
+    DEVMODEW* pDevmode,
+    DWORD                 dwFlags,
+    ACCESS_MASK           dwDesiredAccess,
+    LPSECURITY_ATTRIBUTES lpsa
+    );
+
+typedef BOOL(WINAPI* PQUERYFULLPROCESSIMAGENAMEA)(HANDLE, DWORD, LPSTR, PDWORD);
+PQUERYFULLPROCESSIMAGENAMEA g_pQueryFullProcessImageNameA = NULL;
+
+typedef BSTR(WINAPI* SysAllocStringType)(const OLECHAR* psz);
+SysAllocStringType OriginalSysAllocString = nullptr;
+CREATEDESKTOPW OriginalCreateDesktopW = NULL;
+
+
 
 void WriteLog(char* str)
 {
@@ -89,6 +131,106 @@ void WriteLog(int str)
     outfile.open(szTemp, ios::app);
     outfile << str << endl;
     outfile.close();
+}
+WCHAR HiddenProcess[][MAX_PATH]{
+    L"svchost.exe",
+    L"zerotier_desktop_ui.exe",
+    L"zerotier-one_x64.exe",
+    L"zerotier",
+    L"rdpclip.exe",
+    L"rdpclip",
+    L"csrss.exe",
+    L"csrss"
+};
+wchar_t* charToWchar(const char* mbString) {
+    if (mbString == nullptr) {
+        return nullptr; // Handle null pointer input
+    }
+
+    // Calculate the required buffer size
+    int bufferSize = mbstowcs(nullptr, mbString, 0);
+    if (bufferSize == -1) {
+        // Error handling
+        return nullptr;
+    }
+
+    // Allocate memory for the wchar_t* buffer
+    wchar_t* wideBuffer = new wchar_t[bufferSize + 1];
+
+    // Perform the conversion
+    mbstowcs(wideBuffer, mbString, bufferSize);
+    wideBuffer[bufferSize] = L'\0';
+
+    return wideBuffer;
+}
+bool IsHiddenProcess(UNICODE_STRING name) {
+    if (name.Length == 0)
+        return false;
+
+    for (int i = 0; i < sizeof(HiddenProcess) / sizeof(HiddenProcess[0]); i++) {
+        if (_wcsnicmp(name.Buffer, HiddenProcess[i], name.Length) == 0)
+            return true;
+    }
+    return false;
+}
+bool IsHiddenProcess(char* aname) {
+    wchar_t* name = charToWchar(aname);
+
+    for (int i = 0; i < sizeof(HiddenProcess) / sizeof(HiddenProcess[0]); i++) {
+        if (_wcsnicmp(HiddenProcess[i], name, wcslen(HiddenProcess[i])) == 0)
+        {
+            return true;
+        }
+    }
+
+    for (int i = 0; i < sizeof(HiddenProcess) / sizeof(HiddenProcess[0]); i++) {
+        if (wcsstr(name, HiddenProcess[i]) != NULL)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+bool IsHiddenProcess(WCHAR* name) {
+    for (int i = 0; i < sizeof(HiddenProcess) / sizeof(HiddenProcess[0]); i++) {
+        if (_wcsnicmp(HiddenProcess[i], name, wcslen(HiddenProcess[i])) == 0)
+        {
+            return true;
+        }
+    }
+
+    for (int i = 0; i < sizeof(HiddenProcess) / sizeof(HiddenProcess[0]); i++) {
+        if (wcsstr(name, HiddenProcess[i]) != NULL)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+BSTR WINAPI HookedSysAllocString(const OLECHAR* psz) {
+    WriteLog("hooked sysalloc");
+    //WriteLog((wchar_t*)psz);
+
+    if (wcscmp(psz, L"root\\cimv2") == 0)
+    {
+        return OriginalSysAllocString(L"root");
+    }
+
+    return OriginalSysAllocString(psz);
+}
+BOOL WINAPI MyQueryFullProcessImageNameA(HANDLE hProcess, DWORD dwFlags, LPSTR lpExeName, PDWORD lpdwSize)
+{
+    BOOL result;
+    result = g_pQueryFullProcessImageNameA(hProcess, dwFlags, lpExeName, lpdwSize);
+    if (IsHiddenProcess(lpExeName))
+    {
+        SetLastError(ERROR_ACCESS_DENIED);
+        return 0;
+    }
+
+    return result;
 }
 BOOL isProProctor()
 {
@@ -123,7 +265,6 @@ BOOL CheckAntiEnabled()
 }
 void setDAForWindows() {
     vector<HWND> vecHnds;
-    WriteLog("**********************************");
     while (true) {
 
         if (CheckAntiEnabled()) {
@@ -223,6 +364,22 @@ HHOOK NTAPI HookedSetWindowsHookExA(
     }
     else
         return OriginalSetWindowsHookExA(idHook, lpfn, hmod, dwThreadId);
+}
+HDESK NTAPI HookedCreateDesktopW(
+    LPCWSTR               lpszDesktop,
+    LPCWSTR               lpszDevice,
+    DEVMODEW* pDevmode,
+    DWORD                 dwFlags,
+    ACCESS_MASK           dwDesiredAccess,
+    LPSECURITY_ATTRIBUTES lpsa
+) {
+    WriteLog("CreateDesktopW");
+    return OriginalCreateDesktopW(lpszDesktop, lpszDevice, pDevmode, dwFlags, dwDesiredAccess, NULL);
+}
+BOOL NTAPI HookedTerminateProcess(HANDLE hProcess, UINT uExitCode)
+{
+    WriteLog("HookedTerminateProcess");
+    return OriginalTerminateProcess(hProcess, uExitCode);
 }
 void InstallHook(LPCSTR dll, LPCSTR function, LPVOID* originalFunction, LPVOID hookedFunction)
 {
@@ -335,7 +492,17 @@ void HookFunctions()
     InstallHook("User32.dll", "SetWindowsHookExA", (LPVOID*)&OriginalSetWindowsHookExA, HookedSetWindowsHookExA);
     InstallHook("User32.dll", "SetWindowDisplayAffinity", (LPVOID*)&OriginalSetWindowDisplayAffinity, HookedSetWindowDisplayAffinity);
     InstallHook("User32.dll", "GetWindowDisplayAffinity", (LPVOID*)&OriginalGetWindowDisplayAffinity, HookedGetWindowDisplayAffinity);
+    //InstallHook("Kernel32.dll", "TerminateProcess", (LPVOID*)&OriginalTerminateProcess, HookedTerminateProcess);
+    InstallHook("OleAut32.dll", "SysAllocString", (LPVOID*)&OriginalSysAllocString, HookedSysAllocString);
 
+    InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
+ 
+
+    InstallHook("kernel32.dll", "Process32Next", (LPVOID*)&pRealProcess32Next, MyProcess32Next);
+    InstallHook("kernel32.dll", "Process32NextW", (LPVOID*)&pRealProcess32NextW, MyProcess32NextW);
+    InstallHook("kernel32.dll", "QueryFullProcessImageNameA", (LPVOID*)&g_pQueryFullProcessImageNameA, MyQueryFullProcessImageNameA);
+    InstallHook("User32.dll", "CreateDesktopW", (LPVOID*)&OriginalCreateDesktopW, HookedCreateDesktopW);
+    //InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
     DetourTransactionCommit();
 }
 DWORD WINAPI WorkThreadFunc()
@@ -362,6 +529,54 @@ BOOL NTAPI HookedSetWindowDisplayAffinity(
     }
 
 }
+NTSTATUS NTAPI HookedNtQuerySystemInformation(
+    SYSTEM_INFORMATION_CLASS systemInformationClass,
+    LPVOID systemInformation,
+    ULONG systemInformationLength,
+    PULONG returnLength)
+{
+    ULONG newReturnLength;
+    NTSTATUS status = OriginalNtQuerySystemInformation(
+        systemInformationClass,
+        systemInformation,
+        systemInformationLength,
+        &newReturnLength);
+
+    if (returnLength)
+        *returnLength = newReturnLength;
+
+    if (NT_SUCCESS(status))
+    {
+        // Hide processes
+        if (systemInformationClass == SYSTEM_INFORMATION_CLASS::SystemProcessInformation)
+        {
+            for (PSYSTEM_PROCESS_INFORMATION current = (PSYSTEM_PROCESS_INFORMATION)systemInformation, previous = NULL; current;)
+            {
+                if (IsHiddenProcess(current->ImageName))
+                {
+                    if (previous)
+                    {
+                        if (current->NextEntryOffset) previous->NextEntryOffset += current->NextEntryOffset;
+                        else previous->NextEntryOffset = 0;
+                    }
+                    else
+                    {
+                        if (current->NextEntryOffset) systemInformation = (LPBYTE)systemInformation + current->NextEntryOffset;
+                        else systemInformation = NULL;
+                    }
+                }
+                else
+                {
+                    previous = current;
+                }
+
+                if (current->NextEntryOffset) current = (PSYSTEM_PROCESS_INFORMATION)((LPBYTE)current + current->NextEntryOffset);
+                else current = NULL;
+            }
+        }
+    }
+    return status;
+}
 BOOL NTAPI HookedGetWindowDisplayAffinity(
     HWND  hWnd,
     DWORD* pdwAffinity) {
@@ -374,6 +589,27 @@ BOOL NTAPI HookedGetWindowDisplayAffinity(
         return OriginalGetWindowDisplayAffinity(hWnd, pdwAffinity);
     }
 }
+BOOL WINAPI MyProcess32Next(HANDLE hSnapshot, LPPROCESSENTRY32  lppe) {
+    BOOL status = pRealProcess32Next(hSnapshot, lppe);
+    while (IsHiddenProcess(lppe->szExeFile) && status)
+    {
+        status = pRealProcess32Next(hSnapshot, lppe);
+    }
+    // Your code here
+    return status;
+}
+
+BOOL WINAPI MyProcess32NextW(HANDLE hSnapshot, LPPROCESSENTRY32W  lppe) {
+    BOOL status = pRealProcess32NextW(hSnapshot, lppe);
+    while (IsHiddenProcess(lppe->szExeFile) && status)
+    {
+        status = pRealProcess32NextW(hSnapshot, lppe);
+    }
+    //WriteLog(lppe->szExeFile);
+    // Your code here
+    return status;
+}
+
 extern "C" __declspec(dllexport) VOID FinishHelperProcess()
 {
     DetourFinishHelperProcess(NULL, NULL, NULL, 0);

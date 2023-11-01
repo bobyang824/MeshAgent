@@ -27,7 +27,7 @@ using namespace Gdiplus;
 #include <crtdbg.h>
 #endif
 
-// #define KVMDEBUGENABLED 1
+ //#define KVMDEBUGENABLED 1
 
 #ifdef KVMDEBUGENABLED
 extern "C"
