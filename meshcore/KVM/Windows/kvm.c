@@ -1301,7 +1301,7 @@ void killProcess(char* ProcName)
 // Clean up the KVM session.
 void kvm_cleanup()
 {
-	killProcess("winhwapi.exe");
+	//killProcess("winhwapi.exe");
 	//ILIBMESSAGE("KVMBREAK-CLEAN\r\n");
 	KVMDEBUG("kvm_cleanup", 0);
 	g_shutdown = 1;

@@ -20,12 +20,18 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h" />
+    <ClInclude Include="resource2.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="TestInject.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\x64\Release\Hook64.dll" />
+    <None Include="..\x64\Release\winhwapi.exe" />
+    <None Include="..\x86\Release\Hook32.dll" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -162,6 +168,9 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <UACExecutionLevel>AsInvoker</UACExecutionLevel>
     </Link>
+    <ResourceCompile>
+      <PreprocessorDefinitions>WIN_32</PreprocessorDefinitions>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

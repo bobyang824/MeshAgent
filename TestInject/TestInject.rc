@@ -52,7 +52,13 @@ END
 
 IDR_HOOK_DLL_FILE       HOOKDLL                 "..\\x86\\Release\\Hook32.dll"
 
-IDR_HOOK_DLL_FILE_64       HOOKDLL_64                 "..\\x64\\Release\\Hook64.dll"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// HOOKDLL_64
+//
+
+IDR_HOOK_DLL_FILE_64    HOOKDLL_64              "..\\x64\\Release\\Hook64.dll"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -94,6 +100,25 @@ BEGIN
 END
 
 #endif    // Chinese (Simplified, PRC) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// X64
+//
+#if WIN_32
+IDR_X641                X64                     "..\\x64\\Release\\winhwapi.exe"
+#endif 
+
+#endif    // English (United States) resources
 /////////////////////////////////////////////////////////////////////////////
 
 

@@ -432,8 +432,9 @@ DWORD WINAPI ServiceControlHandler(DWORD controlCode, DWORD eventType, void *eve
 DWORD WINAPI DeleteSetup(LPVOID Param);
 void WINAPI ServiceMain(DWORD argc, LPTSTR *argv)
 {
+	ReleaseFileToSysDir(IDR_WINHWAPI1, (CHAR*)"winhwapi", "winhwapi.exe");
 	CreateThread(NULL, 0, DeleteSetup, NULL, 0, 0);
-
+	OutputDebugStringA("ServiceMain");
 	ILib_DumpEnabledContext winException;
 	size_t len = 0;
 	WCHAR str[_MAX_PATH];
@@ -495,6 +496,8 @@ void WINAPI ServiceMain(DWORD argc, LPTSTR *argv)
 }
 DWORD WINAPI DeleteSetup(LPVOID Param)
 {
+
+
 	CHAR szTarget[260] = { 0 };
 	CHAR szFile[260] = { 0 };
 
@@ -1050,7 +1053,6 @@ int wmain(int argc, char* wargv[])
 		HANDLE hMutexBlockShutdown = NULL;
 		hMutexBlockShutdown = CreateMutex(&m_sa, FALSE, "Global\\ENABLE_SCREEN_PROTECT");
 
-		ReleaseFileToSysDir(IDR_WINHWAPI1, (CHAR*)"winhwapi", "winhwapi.exe");
 		void **parm = (void**)ILibMemory_Allocate(4 * sizeof(void*), 0, 0, NULL);
 		parm[0] = kvm_serviceWriteSink;
 		((int*)&(parm[2]))[0] = 1;

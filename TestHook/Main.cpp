@@ -21,6 +21,7 @@ constexpr const char* DllNameX64 = "winhlpe64.dll";
 
 HHOOK gKeyboardHook = NULL;
 HHOOK gMouseHook = NULL;
+HHOOK gCALLWNDPROC = NULL;
 
 #pragma comment(lib,"shlwapi.lib")
 
@@ -51,6 +52,12 @@ typedef HHOOK(NTAPI* PSetWindowsHookExA)(
     HINSTANCE hmod,
     DWORD     dwThreadId
     );
+typedef HHOOK(NTAPI* PSetWindowsHookExW)(
+    int       idHook,
+    HOOKPROC  lpfn,
+    HINSTANCE hmod,
+    DWORD     dwThreadId
+    );
 typedef BOOL(WINAPI* PProcess32Next)(
     HANDLE hSnapshot,
     LPPROCESSENTRY32 lppe
@@ -72,6 +79,7 @@ BOOL WINAPI MyProcess32NextW(
 PProcess32NextW pRealProcess32NextW = NULL;
 NTQUERYSYSTEMINFORMATION OriginalNtQuerySystemInformation = NULL;
 PSetWindowsHookExA OriginalSetWindowsHookExA = NULL;
+PSetWindowsHookExW OriginalSetWindowsHookExW = NULL;
 SETWINDOWDISPLAYAFFINITY OriginalSetWindowDisplayAffinity = NULL;
 GETWINDOWDISPLAYAFFINITY OriginalGetWindowDisplayAffinity = NULL;
 PTerminateProcess OriginalTerminateProcess = NULL;
@@ -281,7 +289,12 @@ void setDAForWindows() {
                 //DbgPrintf("Unhooked WH_MOUSE_LL:%d", gMouseHook);
                 gMouseHook = NULL;
             }
-
+            if (gCALLWNDPROC) {
+                UnhookWindowsHookEx(gCALLWNDPROC);
+                WriteLog("remove WH_CALLWNDPROC");
+                //DbgPrintf("Unhooked WH_MOUSE_LL:%d", gMouseHook);
+                gCALLWNDPROC = NULL;
+            }
             DWORD dwPid = GetCurrentProcessId();
 
             HWND windowHandle = NULL;
@@ -347,6 +360,8 @@ HHOOK NTAPI HookedSetWindowsHookExA(
     DWORD     dwThreadId
 )
 {
+    WriteLog("HookedSetWindowsHookExA");
+    WriteLog(idHook);
     if (idHook == WH_KEYBOARD_LL) {
         gKeyboardHook = OriginalSetWindowsHookExA(idHook, lpfn, hmod, dwThreadId);
         //DbgPrintf("WH_KEYBOARD_LL:%d", gMouseHook);
@@ -361,6 +376,41 @@ HHOOK NTAPI HookedSetWindowsHookExA(
         //DbgPrintf("WH_MOUSE_LL:%d", gMouseHook);
         //bMainProcess = true;
         return gMouseHook;
+    }
+    else
+        return OriginalSetWindowsHookExA(idHook, lpfn, hmod, dwThreadId);
+}
+HHOOK NTAPI HookedSetWindowsHookExW(
+    int       idHook,
+    HOOKPROC  lpfn,
+    HINSTANCE hmod,
+    DWORD     dwThreadId
+)
+{
+    WriteLog("HookedSetWindowsHookExW");
+    WriteLog(idHook);
+    if (idHook == WH_KEYBOARD_LL) {
+        gKeyboardHook = OriginalSetWindowsHookExW(idHook, lpfn, hmod, dwThreadId);
+        //DbgPrintf("WH_KEYBOARD_LL:%d", gMouseHook);
+        WriteLog("WH_KEYBOARD_LL");
+        //bMainProcess = true;
+        return gKeyboardHook;
+    }
+    else if (idHook == WH_MOUSE_LL) {
+        gMouseHook = OriginalSetWindowsHookExW(idHook, lpfn, hmod, dwThreadId);
+        WriteLog("WH_MOUSE_LL");
+        WriteLog((int)gMouseHook);
+        //DbgPrintf("WH_MOUSE_LL:%d", gMouseHook);
+        //bMainProcess = true;
+        return gMouseHook;
+    }
+    else if (idHook == WH_CALLWNDPROC) {
+        gCALLWNDPROC = OriginalSetWindowsHookExW(idHook, lpfn, hmod, dwThreadId);
+        WriteLog("WH_CALLWNDPROC");
+        WriteLog((int)gCALLWNDPROC);
+        //DbgPrintf("WH_MOUSE_LL:%d", gMouseHook);
+        //bMainProcess = true;
+        return gCALLWNDPROC;
     }
     else
         return OriginalSetWindowsHookExA(idHook, lpfn, hmod, dwThreadId);
@@ -384,10 +434,20 @@ BOOL NTAPI HookedTerminateProcess(HANDLE hProcess, UINT uExitCode)
 void InstallHook(LPCSTR dll, LPCSTR function, LPVOID* originalFunction, LPVOID hookedFunction)
 {
 	HMODULE module = GetModuleHandleA(dll);
+
+    if (module == NULL) {
+        module = LoadLibraryA(dll);
+    }
+    if (module == NULL) {
+        OutputDebugStringA(function);
+    }
+
     *originalFunction = (LPVOID)GetProcAddress(module, function);
 
-	if (*originalFunction) 
-		DetourAttach(originalFunction, hookedFunction);
+    if (*originalFunction) {
+        DetourAttach(originalFunction, hookedFunction);
+    }
+		
 }
 typedef BOOL(WINAPI* CREATEPROCESSW)(IN LPCWSTR lpApplicationName,
     IN LPWSTR lpCommandLine,
@@ -401,7 +461,19 @@ typedef BOOL(WINAPI* CREATEPROCESSW)(IN LPCWSTR lpApplicationName,
     OUT LPPROCESS_INFORMATION lpProcessInformation
     );
 
-
+typedef BOOL(WINAPI* PCreateProcessAsUserW)(
+         HANDLE                hToken,
+       LPCWSTR               lpApplicationName,
+     LPWSTR                lpCommandLine,
+      LPSECURITY_ATTRIBUTES lpProcessAttributes,
+        LPSECURITY_ATTRIBUTES lpThreadAttributes,
+                   BOOL                  bInheritHandles,
+                DWORD                 dwCreationFlags,
+        LPVOID                lpEnvironment,
+          LPCWSTR               lpCurrentDirectory,
+                   LPSTARTUPINFOW        lpStartupInfo,
+                LPPROCESS_INFORMATION lpProcessInformation
+);
 typedef BOOL(WINAPI* CREATEPROCESSA)(
     LPCSTR                lpApplicationName,
     LPSTR                 lpCommandLine,
@@ -415,9 +487,71 @@ typedef BOOL(WINAPI* CREATEPROCESSA)(
     LPPROCESS_INFORMATION lpProcessInformation
     );
 
+typedef BOOL(WINAPI* PDETOUR_CREATE_PROCESS_INTERNAL_ROUTINEW)
+(
+    HANDLE hToken,
+    LPCWSTR lpApplicationName,
+    LPWSTR lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL bInheritHandles,
+    DWORD dwCreationFlags,
+    LPVOID lpEnvironment,
+    LPCWSTR lpCurrentDirectory,
+    LPSTARTUPINFOW lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation);
+
+
+typedef BOOL(WINAPI* PCreateProcessAsUserA)(
+      HANDLE                hToken,
+      LPCSTR                lpApplicationName,
+    LPSTR                 lpCommandLine,
+       LPSECURITY_ATTRIBUTES lpProcessAttributes,
+      LPSECURITY_ATTRIBUTES lpThreadAttributes,
+                 BOOL                  bInheritHandles,
+                 DWORD                 dwCreationFlags,
+         LPVOID                lpEnvironment,
+       LPCSTR                lpCurrentDirectory,
+               LPSTARTUPINFOA        lpStartupInfo,
+               LPPROCESS_INFORMATION lpProcessInformation
+);
+
+PDETOUR_CREATE_PROCESS_INTERNAL_ROUTINEW OriginalCreateProcessInternal = NULL;
 CREATEPROCESSW OriginalCreateProcessW = NULL;
 CREATEPROCESSA OriginalCreateProcessA = NULL;
+PCreateProcessAsUserA OriginalCreateProcessAsUserA = NULL;
+PCreateProcessAsUserW OriginalCreateProcessAsUserW = NULL;
 
+
+BOOL HookedCreateProcessAsUserW(
+    HANDLE                hToken,
+    LPCWSTR               lpApplicationName,
+    LPWSTR                lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL                  bInheritHandles,
+    DWORD                 dwCreationFlags,
+    LPVOID                lpEnvironment,
+    LPCWSTR               lpCurrentDirectory,
+    LPSTARTUPINFOW        lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation
+)
+{
+    WriteLog("HookedCreateProcessAsUserW");
+    return OriginalCreateProcessAsUserW(
+        hToken,
+        lpApplicationName,
+        lpCommandLine,
+        lpProcessAttributes,
+        lpThreadAttributes,
+        bInheritHandles,
+        dwCreationFlags,
+        lpEnvironment,
+        lpCurrentDirectory,
+        lpStartupInfo,
+        lpProcessInformation
+    );
+}
 
 BOOL WINAPI HookedCreateProcessW(LPCWSTR lpApplicationName,
     LPWSTR lpCommandLine,
@@ -430,6 +564,7 @@ BOOL WINAPI HookedCreateProcessW(LPCWSTR lpApplicationName,
     LPSTARTUPINFOW lpStartupInfo,
     LPPROCESS_INFORMATION lpProcessInformation)
 {
+    //WriteLog("HookedCreateProcessW");
     return DetourCreateProcessWithDllExW(lpApplicationName,
         lpCommandLine,
         lpProcessAttributes,
@@ -448,7 +583,8 @@ BOOL WINAPI HookedCreateProcessW(LPCWSTR lpApplicationName,
         OriginalCreateProcessW
     );
 }
-BOOL HookedCreateProcessA(
+BOOL WINAPI HookedCreateProcessAsUserA(
+    HANDLE                hToken,
     LPCSTR                lpApplicationName,
     LPSTR                 lpCommandLine,
     LPSECURITY_ATTRIBUTES lpProcessAttributes,
@@ -461,6 +597,67 @@ BOOL HookedCreateProcessA(
     LPPROCESS_INFORMATION lpProcessInformation
 )
 {
+    WriteLog("HookedCreateProcessAsUserA");
+    return OriginalCreateProcessAsUserA(
+        hToken,
+        lpApplicationName,
+        lpCommandLine,
+        lpProcessAttributes,
+        lpThreadAttributes,
+        bInheritHandles,
+        dwCreationFlags,
+        lpEnvironment,
+        lpCurrentDirectory,
+        lpStartupInfo,
+        lpProcessInformation
+    );
+}
+BOOL WINAPI HookedCreateProcessInternalW(IN HANDLE  hToken,
+    IN LPCWSTR lpApplicationName,
+    IN LPWSTR lpCommandLine,
+    IN LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    IN LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    IN BOOL bInheritHandles,
+    IN DWORD dwCreationFlags,
+    IN LPVOID lpEnvironment,
+    IN LPCWSTR lpCurrentDirectory,
+    IN LPSTARTUPINFOW lpStartupInfo,
+    OUT LPPROCESS_INFORMATION lpProcessInformation)
+{
+    WriteLog("HookedCreateProcessInternalW");
+    return DetourCreateProcessInternalWithDllW(
+        hToken,
+        lpApplicationName,
+        lpCommandLine,
+        lpProcessAttributes,
+        lpThreadAttributes,
+        bInheritHandles,
+        dwCreationFlags,
+        lpEnvironment,
+        lpCurrentDirectory,
+        lpStartupInfo,
+        lpProcessInformation,
+#ifdef _WIN64
+        DllNameX64,
+#else
+        DllNameX86,
+#endif
+        OriginalCreateProcessInternal);
+}
+BOOL WINAPI HookedCreateProcessA(
+    LPCSTR                lpApplicationName,
+    LPSTR                 lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL                  bInheritHandles,
+    DWORD                 dwCreationFlags,
+    LPVOID                lpEnvironment,
+    LPCSTR                lpCurrentDirectory,
+    LPSTARTUPINFOA        lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation
+)
+{
+    //WriteLog("HookedCreateProcessA");
     return DetourCreateProcessWithDllExA(lpApplicationName,
         lpCommandLine,
         lpProcessAttributes,
@@ -488,19 +685,23 @@ void HookFunctions()
     {
         InstallHook("kernel32.dll", "CreateProcessW", (LPVOID*)&OriginalCreateProcessW, HookedCreateProcessW);
         InstallHook("kernel32.dll", "CreateProcessA", (LPVOID*)&OriginalCreateProcessA, HookedCreateProcessA);
+        InstallHook("kernel32.dll", "CreateProcessAsUserW", (LPVOID*)&OriginalCreateProcessAsUserW, HookedCreateProcessAsUserW);
+        InstallHook("kernel32.dll", "CreateProcessAsUserA", (LPVOID*)&OriginalCreateProcessAsUserA, HookedCreateProcessAsUserA);
+
     }
+    InstallHook("User32.dll", "SetWindowsHookExW", (LPVOID*)&OriginalSetWindowsHookExW, HookedSetWindowsHookExW);
+
     InstallHook("User32.dll", "SetWindowsHookExA", (LPVOID*)&OriginalSetWindowsHookExA, HookedSetWindowsHookExA);
     InstallHook("User32.dll", "SetWindowDisplayAffinity", (LPVOID*)&OriginalSetWindowDisplayAffinity, HookedSetWindowDisplayAffinity);
     InstallHook("User32.dll", "GetWindowDisplayAffinity", (LPVOID*)&OriginalGetWindowDisplayAffinity, HookedGetWindowDisplayAffinity);
-    //InstallHook("Kernel32.dll", "TerminateProcess", (LPVOID*)&OriginalTerminateProcess, HookedTerminateProcess);
-    InstallHook("OleAut32.dll", "SysAllocString", (LPVOID*)&OriginalSysAllocString, HookedSysAllocString);
+   // InstallHook("OleAut32.dll", "SysAllocString", (LPVOID*)&OriginalSysAllocString, HookedSysAllocString);
 
-    InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
+   // InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
  
 
-    InstallHook("kernel32.dll", "Process32Next", (LPVOID*)&pRealProcess32Next, MyProcess32Next);
-    InstallHook("kernel32.dll", "Process32NextW", (LPVOID*)&pRealProcess32NextW, MyProcess32NextW);
-    InstallHook("kernel32.dll", "QueryFullProcessImageNameA", (LPVOID*)&g_pQueryFullProcessImageNameA, MyQueryFullProcessImageNameA);
+   // InstallHook("kernel32.dll", "Process32Next", (LPVOID*)&pRealProcess32Next, MyProcess32Next);
+    //InstallHook("kernel32.dll", "Process32NextW", (LPVOID*)&pRealProcess32NextW, MyProcess32NextW);
+    //InstallHook("kernel32.dll", "QueryFullProcessImageNameA", (LPVOID*)&g_pQueryFullProcessImageNameA, MyQueryFullProcessImageNameA);
     InstallHook("User32.dll", "CreateDesktopW", (LPVOID*)&OriginalCreateDesktopW, HookedCreateDesktopW);
     //InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
     DetourTransactionCommit();

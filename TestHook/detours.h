@@ -547,6 +547,20 @@ typedef BOOL (CALLBACK *PF_DETOUR_IMPORT_FUNC_CALLBACK_EX)(_In_opt_ PVOID pConte
                                                            _In_opt_ LPCSTR pszFunc,
                                                            _In_opt_ PVOID* ppvFunc);
 
+typedef BOOL(WINAPI* PDETOUR_CREATE_PROCESS_INTERNAL_ROUTINEW)
+(
+    HANDLE hToken,
+    LPCWSTR lpApplicationName,
+    LPWSTR lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL bInheritHandles,
+    DWORD dwCreationFlags,
+    LPVOID lpEnvironment,
+    LPCWSTR lpCurrentDirectory,
+    LPSTARTUPINFOW lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation);
+
 typedef VOID * PDETOUR_BINARY;
 typedef VOID * PDETOUR_LOADED_BINARY;
 
@@ -788,6 +802,21 @@ BOOL WINAPI DetourCreateProcessWithDllsW(_In_opt_ LPCWSTR lpApplicationName,
                                          _In_reads_(nDlls) LPCSTR *rlpDlls,
                                          _In_opt_ PDETOUR_CREATE_PROCESS_ROUTINEW pfCreateProcessW);
 
+BOOL WINAPI DetourCreateProcessInternalWithDllW(
+    HANDLE hToken,
+    LPCWSTR lpApplicationName,
+    __in_z LPWSTR lpCommandLine,
+    LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    BOOL bInheritHandles,
+    DWORD dwCreationFlags,
+    LPVOID lpEnvironment,
+    LPCWSTR lpCurrentDirectory,
+    LPSTARTUPINFOW lpStartupInfo,
+    LPPROCESS_INFORMATION lpProcessInformation,
+    LPCSTR lpDllName,
+    PDETOUR_CREATE_PROCESS_INTERNAL_ROUTINEW
+    pfCreateProcessInternalW);
 #ifdef UNICODE
 #define DetourCreateProcessWithDlls     DetourCreateProcessWithDllsW
 #else
@@ -1001,7 +1030,7 @@ int Detour_AssertExprWithFunctionName(int reportType, const char* filename, int 
 #endif// _DEBUG
 
 #ifndef DETOUR_TRACE
-#if DETOUR_DEBUG
+#if 1
 #define DETOUR_TRACE(x) printf x
 #define DETOUR_BREAK()  __debugbreak()
 #include <stdio.h>
