@@ -651,7 +651,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     StringCbCat(szExeFile, sizeof(szExeFile), "\\");
     StringCbCat(szExeFile, sizeof(szExeFile), "winhlpe64.exe");
 
-    ReleaseFileToSysDir(IDR_X641, (CHAR*)"X64", "winhlpe64.exe");
+    //ReleaseFileToSysDir(IDR_X641, (CHAR*)"X64", "winhlpe64.exe");
 
     //RunProcess(szExeFile);
 

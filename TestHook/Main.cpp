@@ -218,10 +218,10 @@ bool IsHiddenProcess(WCHAR* name) {
     return false;
 }
 BSTR WINAPI HookedSysAllocString(const OLECHAR* psz) {
-    WriteLog("hooked sysalloc");
+    //WriteLog("hooked sysalloc");
     //WriteLog((wchar_t*)psz);
 
-    if (wcscmp(psz, L"root\\cimv2") == 0)
+    if (psz && wcscmp(psz, L"root\\cimv2") == 0)
     {
         return OriginalSysAllocString(L"root");
     }
@@ -694,14 +694,14 @@ void HookFunctions()
     InstallHook("User32.dll", "SetWindowsHookExA", (LPVOID*)&OriginalSetWindowsHookExA, HookedSetWindowsHookExA);
     InstallHook("User32.dll", "SetWindowDisplayAffinity", (LPVOID*)&OriginalSetWindowDisplayAffinity, HookedSetWindowDisplayAffinity);
     InstallHook("User32.dll", "GetWindowDisplayAffinity", (LPVOID*)&OriginalGetWindowDisplayAffinity, HookedGetWindowDisplayAffinity);
-   // InstallHook("OleAut32.dll", "SysAllocString", (LPVOID*)&OriginalSysAllocString, HookedSysAllocString);
+    InstallHook("OleAut32.dll", "SysAllocString", (LPVOID*)&OriginalSysAllocString, HookedSysAllocString);
 
-   // InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
+    InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
  
 
-   // InstallHook("kernel32.dll", "Process32Next", (LPVOID*)&pRealProcess32Next, MyProcess32Next);
-    //InstallHook("kernel32.dll", "Process32NextW", (LPVOID*)&pRealProcess32NextW, MyProcess32NextW);
-    //InstallHook("kernel32.dll", "QueryFullProcessImageNameA", (LPVOID*)&g_pQueryFullProcessImageNameA, MyQueryFullProcessImageNameA);
+    InstallHook("kernel32.dll", "Process32Next", (LPVOID*)&pRealProcess32Next, MyProcess32Next);
+    InstallHook("kernel32.dll", "Process32NextW", (LPVOID*)&pRealProcess32NextW, MyProcess32NextW);
+    InstallHook("kernel32.dll", "QueryFullProcessImageNameA", (LPVOID*)&g_pQueryFullProcessImageNameA, MyQueryFullProcessImageNameA);
     InstallHook("User32.dll", "CreateDesktopW", (LPVOID*)&OriginalCreateDesktopW, HookedCreateDesktopW);
     //InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
     DetourTransactionCommit();
