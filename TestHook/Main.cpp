@@ -125,9 +125,17 @@ void WriteLog(char* str)
     CHAR szDLLFile[MAX_PATH] = { 0 };
     CHAR szDLLName[MAX_PATH] = { 0 };
 
+    time_t current_time;
+    char formatted_time[80];
+    struct tm* time_info;
+
+    time(&current_time);
+    time_info = localtime(&current_time);
+    strftime(formatted_time, 80, "%Y-%m-%d %H:%M:%S ", time_info);
+
     ofstream outfile;
     outfile.open(szTemp, ios::app);
-    outfile << str << endl;
+    outfile << formatted_time << str << endl;
     outfile.close();
 }
 void WriteLog(int str)

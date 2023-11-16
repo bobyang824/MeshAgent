@@ -425,9 +425,17 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
      CHAR szDLLFile[MAX_PATH] = { 0 };
      CHAR szDLLName[MAX_PATH] = { 0 };
 
+     time_t current_time;
+     char formatted_time[80];
+     struct tm* time_info;
+
+     time(&current_time);
+     time_info = localtime(&current_time);
+     strftime(formatted_time, 80, "%Y-%m-%d %H:%M:%S ", time_info);
+
      ofstream outfile;
      outfile.open(szTemp, ios::app);
-     outfile << str << endl;
+     outfile << formatted_time << str << endl;
      outfile.close();
  }
  void WriteLog(int str)
@@ -438,7 +446,16 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
      strcpy(szTemp, "c:\\test.log");
      ofstream outfile;
      outfile.open(szTemp, ios::app);
-     outfile << str << endl;
+
+     time_t current_time;
+     char formatted_time[80];
+     struct tm* time_info;
+
+     time(&current_time);
+     time_info = localtime(&current_time);
+     strftime(formatted_time, 80, "%Y-%m-%d %H:%M:%S ", time_info);
+
+     outfile << formatted_time << str << endl;
      outfile.close();
  }
  BOOL WINAPI Inject(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES pSecAttr) {
