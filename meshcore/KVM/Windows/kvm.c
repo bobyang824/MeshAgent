@@ -307,7 +307,7 @@ void CheckDesktopSwitch(int checkres, ILibKVM_WriteHandler writeHandler, void *r
 	HDESK desktop2;
 	char name[64];
 
-	// KVMDEBUG("CheckDesktopSwitch", checkres);
+	 KVMDEBUG("CheckDesktopSwitch", checkres);
 
 	// Check desktop switch
 	if ((desktop2 = GetThreadDesktop(GetCurrentThreadId())) == NULL) { KVMDEBUG("GetThreadDesktop Error", 0); } // CloseDesktop() is not needed
