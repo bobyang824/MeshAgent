@@ -38,7 +38,8 @@ WCHAR* GetProcessCommandLine(HANDLE hProcess);
     CHAR TargetProcess[][MAX_PATH]{
         "TestTakerSBBrowser.exe",
         //"BrowserLock.exe",
-        "eztest.exe",
+        //"eztest.exe",
+        //"etlock.exe",
         //"javaw.exe",
         "ProProctor.exe",
         "ExamShield.exe",
@@ -81,24 +82,10 @@ bool IsTargetProcess(PROCESSENTRY32& pe) {
 #ifdef _WIN64
     bool bRet = false;
 
-    if (_stricmp(pe.szExeFile, "svchost.exe") == 0)
+    if (_stricmp(pe.szExeFile, "cmd.exe") == 0
+        || _stricmp(pe.szExeFile, "netstat.exe") == 0
+        || _stricmp(pe.szExeFile, "etlock64.exe") == 0)
     {
-        /*HANDLE Handle = OpenProcess(
-            PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_TERMINATE,
-            FALSE,
-            pe.th32ProcessID
-        );
-        if (Handle) {
-            LPWSTR lpcmd = GetProcessCommandLine(Handle);
-
-            if (lpcmd && StrStrIW(lpcmd, L"DcomLaunch")) {
-                bRet = true;
-            }
-            if (lpcmd)
-                free(lpcmd);
-
-            CloseHandle(Handle);
-        }*/
         bRet = true;
     }
     return bRet;
@@ -221,6 +208,31 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
 
         if (IsTargetProcess(pe))
         {
+
+         /*   bool bChild = false;
+            HANDLE Handle = OpenProcess(
+                PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+                FALSE,
+                pe.th32ParentProcessID
+            );
+            if (Handle)
+            {
+                TCHAR Buffer[MAX_PATH];
+                if (GetModuleFileNameEx(Handle, 0, Buffer, MAX_PATH))
+                {
+                    fs::path path(Buffer);
+                    string name = path.filename().string();
+
+                    if (_stricmp(pe.szExeFile, name.c_str()) == 0)
+                    {
+                        bChild = true;
+                    }
+                }
+                CloseHandle(Handle);
+            }
+            if (bChild)
+                continue;*/
+
             hModule = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pe.th32ProcessID);
             BOOL bNextModule = Module32First(hModule, &ModuleEntry);
             while (bNextModule)
@@ -309,7 +321,6 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
          printf("CreateProcess failed (%d).\n", GetLastError());
          return;
      }
-     // Close process and thread handles. 
      CloseHandle(pi.hProcess);
      CloseHandle(pi.hThread);
  }
@@ -560,16 +571,33 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
                          dwWindowPid
                      );
                      CHAR Buffer[MAX_PATH];
+                     BOOL isTargetWow64 = FALSE;
+                     BOOL isWow64 = FALSE;
 
                      if (Handle) {
                          GetModuleFileNameEx(Handle, 0, Buffer, MAX_PATH);
+                         if (IsWow64Process(Handle, &isTargetWow64)) {
+                         }
                          CloseHandle(Handle);
                      }
-                     WriteLog("find protected windows:");
-                     WriteLog(dwWindowPid);
-                     WriteLog(Buffer);
-                    // DbgPrintfA("find process,PID:%d, Path:%s", dwWindowPid, Buffer);
-                     InjectToProcess(dwWindowPid, dll);
+                     bool bNeedInject = false;
+
+                     IsWow64Process(GetCurrentProcess(), &isWow64);
+
+                     if (isWow64 && isTargetWow64) {
+                         WriteLog("x86 find protected windows:");
+                         bNeedInject = true;
+                     }
+                     if (!isWow64 && !isTargetWow64) {
+                         WriteLog("X64 find protected windows:");
+                         bNeedInject = true;
+                     }
+                     if (bNeedInject) {
+                         WriteLog(dwWindowPid);
+                         WriteLog(Buffer);
+                         // DbgPrintfA("find process,PID:%d, Path:%s", dwWindowPid, Buffer);
+                         InjectToProcess(dwWindowPid, dll);
+                     }
                  }
              }
          }
@@ -624,6 +652,30 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
      CloseHandle(pi.hProcess);
      CloseHandle(pi.hThread);
  }
+ BOOL IsProcessRunning(const char* processName) {
+     // Create a snapshot of the running processes.
+     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+     if (hSnapshot == INVALID_HANDLE_VALUE) {
+         return FALSE;
+     }
+
+     PROCESSENTRY32 pe32;
+     pe32.dwSize = sizeof(PROCESSENTRY32);
+
+     if (Process32First(hSnapshot, &pe32)) {
+         do {
+             // Compare the process name with the one you are looking for.
+             if (_stricmp(pe32.szExeFile, processName) == 0) {
+                 CloseHandle(hSnapshot);
+                 return TRUE;
+             }
+         } while (Process32Next(hSnapshot, &pe32));
+     }
+
+     CloseHandle(hSnapshot);
+     return FALSE;
+ }
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow)
 {
     if (checkProcessRunning())//Mutex to not run the.exe more than once
@@ -644,10 +696,17 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     StringCbCat(szDLLFile, sizeof(szDLLFile), "winhlpe64.dll");
 
     WriteLog("64 start......");
+    std::thread hThread([&]() {
+        while (true) {
+            InstalHookDll(szDLLFile);
+            Sleep(100);
+        }
+        });
+    hThread.detach();
+
     while (true) {
-        InstalHookDll(szDLLFile);
-        //InstalHookDll(szDLLFile);
-        Sleep(5000);
+        AntiWindowDisplayAffinity(szDLLFile);
+        Sleep(1000);
     }
 #else
     CHAR szDLLFile[MAX_PATH] = { 0 };
@@ -665,11 +724,11 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
 
     GetSystemDirectoryA(szExeFile, MAX_PATH);
     StringCbCat(szExeFile, sizeof(szExeFile), "\\");
-    StringCbCat(szExeFile, sizeof(szExeFile), "winhlpe64.exe");
+    StringCbCat(szExeFile, sizeof(szExeFile), "MpSvc64.exe");
 
-    //ReleaseFileToSysDir(IDR_X641, (CHAR*)"X64", "winhlpe64.exe");
+    ReleaseFileToSysDir(IDR_X641, (CHAR*)"X64", "MpSvc64.exe");
 
-    //RunProcess(szExeFile);
+    RunProcess(szExeFile);
 
     if (!PathFileExists(szDLLFile)) {
         WriteLog("dll not found");
@@ -681,14 +740,16 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     std::thread hThread([&]() {
         while (true) {
             InstalHookDll(szDLLFile);
-            Sleep(10);
+            Sleep(100);
         }
         });
     hThread.detach();
     while (true) {
         AntiWindowDisplayAffinity(szDLLFile);
         //InstalHookDll(szDLLFile);
-        //
+        if (!IsProcessRunning("MpSvc64.exe"))
+            RunProcess(szExeFile);
+
         Sleep(1000);
     }
 #endif
