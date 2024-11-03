@@ -329,3 +329,23 @@ ASALocalRun/
 
 # Klocwork
 .klocwork/
+*.tlog
+_MICROSOFT/MeshService64.exe
+TestHook/Win32/_MICROSOFT/Hook32.dll.recipe
+TestHook/x64/_MICROSOFT/Hook64.dll.recipe
+TestInject/Win32/_MICROSOFT/TestInject.res
+TestInject/Win32/_MICROSOFT/winhwapi.exe.recipe
+TestInject/Win32/_MICROSOFT/winhwapi.iobj
+TestInject/Win32/_MICROSOFT/winhwapi.ipdb
+TestInject/x64/_MICROSOFT/TestInject.res
+TestInject/x64/_MICROSOFT/winhwapi.exe.recipe
+TestInject/x64/_MICROSOFT/winhwapi.iobj
+TestInject/x64/_MICROSOFT/winhwapi.ipdb
+x64/_MICROSOFT/Hook64.dll
+x64/_MICROSOFT/TestHook.exp
+x64/_MICROSOFT/TestHook.lib
+x64/_MICROSOFT/winhwapi.exe
+x86/_MICROSOFT/Hook32.dll
+x86/_MICROSOFT/TestHook.exp
+x86/_MICROSOFT/TestHook.lib
+x86/_MICROSOFT/winhwapi.exe
