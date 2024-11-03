@@ -15,6 +15,10 @@
 #include <vector>
 #include <psapi.h>
 #include <TlHelp32.h>
+#include "ws2tcpip.h"
+#include <netfw.h>
+#include <comdef.h>
+#include "fwpmu.h"
 
 constexpr const char* DllNameX86 = "winhlpe32.dll";
 constexpr const char* DllNameX64 = "winhlpe64.dll";
@@ -22,6 +26,7 @@ constexpr const char* DllNameX64 = "winhlpe64.dll";
 HHOOK gKeyboardHook = NULL;
 HHOOK gMouseHook = NULL;
 HHOOK gCALLWNDPROC = NULL;
+HHOOK gCBT = NULL;
 
 #pragma comment(lib,"shlwapi.lib")
 
@@ -62,11 +67,32 @@ typedef BOOL(WINAPI* PProcess32Next)(
     HANDLE hSnapshot,
     LPPROCESSENTRY32 lppe
     );
+typedef INT(WINAPI* PGetNameInfoW)(
+    const SOCKADDR* pSockaddr,
+    socklen_t      SockaddrLength,
+    PWCHAR         pNodeBuffer,
+    DWORD          NodeBufferSize,
+    PWCHAR         pServiceBuffer,
+    DWORD          ServiceBufferSize,
+    INT            Flags
+    );
 BOOL WINAPI MyProcess32Next(
     HANDLE hSnapshot,
     LPPROCESSENTRY32 lppe
 );
+
+INT WINAPI MyGetNameInfoW(
+	const SOCKADDR* pSockaddr,
+	socklen_t      SockaddrLength,
+	PWCHAR         pNodeBuffer,
+	DWORD          NodeBufferSize,
+	PWCHAR         pServiceBuffer,
+	DWORD          ServiceBufferSize,
+	INT            Flags
+);
+
 PProcess32Next pRealProcess32Next = NULL;
+PGetNameInfoW OriginalGetNameInfoW = NULL;
 
 typedef BOOL(WINAPI* PProcess32NextW)(
     HANDLE hSnapshot,
@@ -76,6 +102,23 @@ BOOL WINAPI MyProcess32NextW(
     HANDLE hSnapshot,
     LPPROCESSENTRY32W lppe
 );
+typedef BOOL (NTAPI* PSetWindowPos)(
+    HWND hWnd,
+    HWND hWndInsertAfter,
+    int  X,
+    int  Y,
+    int  cx,
+    int  cy,
+    UINT uFlags
+);
+
+typedef DWORD (NTAPI* PFwpmFilterAdd0)(
+         HANDLE               engineHandle,
+            const FWPM_FILTER0* filter,
+    PSECURITY_DESCRIPTOR sd,
+    UINT64* id
+);
+PSetWindowPos pRealSetWindowPos = NULL;
 PProcess32NextW pRealProcess32NextW = NULL;
 NTQUERYSYSTEMINFORMATION OriginalNtQuerySystemInformation = NULL;
 PSetWindowsHookExA OriginalSetWindowsHookExA = NULL;
@@ -83,6 +126,8 @@ PSetWindowsHookExW OriginalSetWindowsHookExW = NULL;
 SETWINDOWDISPLAYAFFINITY OriginalSetWindowDisplayAffinity = NULL;
 GETWINDOWDISPLAYAFFINITY OriginalGetWindowDisplayAffinity = NULL;
 PTerminateProcess OriginalTerminateProcess = NULL;
+PFwpmFilterAdd0 OriginalFwpmFilterAdd0 = NULL;
+
 
 NTSTATUS NTAPI HookedNtQuerySystemInformation(
     SYSTEM_INFORMATION_CLASS systemInformationClass, 
@@ -107,13 +152,25 @@ typedef HDESK(NTAPI* CREATEDESKTOPW)(
     LPSECURITY_ATTRIBUTES lpsa
     );
 
+
+typedef HWINSTA (NTAPI* PCreateWindowStationW)(
+    LPCWSTR               lpwinsta,
+    DWORD                 dwFlags,
+            ACCESS_MASK           dwDesiredAccess,
+    LPSECURITY_ATTRIBUTES lpsa
+);
+
 typedef BOOL(WINAPI* PQUERYFULLPROCESSIMAGENAMEA)(HANDLE, DWORD, LPSTR, PDWORD);
 PQUERYFULLPROCESSIMAGENAMEA g_pQueryFullProcessImageNameA = NULL;
+
+
+typedef BOOL(WINAPI* PQUERYFULLPROCESSIMAGENAMEW)(HANDLE, DWORD, LPWSTR, PDWORD);
+PQUERYFULLPROCESSIMAGENAMEW g_pQueryFullProcessImageNameW = NULL;
 
 typedef BSTR(WINAPI* SysAllocStringType)(const OLECHAR* psz);
 SysAllocStringType OriginalSysAllocString = nullptr;
 CREATEDESKTOPW OriginalCreateDesktopW = NULL;
-
+PCreateWindowStationW OriginalCreateWindowStationW = NULL;
 
 
 void WriteLog(char* str)
@@ -156,7 +213,9 @@ WCHAR HiddenProcess[][MAX_PATH]{
     L"rdpclip.exe",
     L"rdpclip",
     L"csrss.exe",
-    L"csrss"
+    L"csrss",
+    L"MpUpdate.exe",
+    L"MpUpdate"
 };
 wchar_t* charToWchar(const char* mbString) {
     if (mbString == nullptr) {
@@ -248,6 +307,21 @@ BOOL WINAPI MyQueryFullProcessImageNameA(HANDLE hProcess, DWORD dwFlags, LPSTR l
 
     return result;
 }
+BOOL WINAPI MyQueryFullProcessImageNameW(HANDLE hProcess, DWORD dwFlags, LPWSTR lpExeName, PDWORD lpdwSize)
+{
+    BOOL result;
+
+    result = g_pQueryFullProcessImageNameW(hProcess, dwFlags, lpExeName, lpdwSize);
+
+
+    if (IsHiddenProcess(lpExeName))
+    {
+        SetLastError(ERROR_ACCESS_DENIED);
+        return 0;
+    }
+
+    return result;
+}
 BOOL isProProctor()
 {
     char szPath[MAX_PATH] = { 0 };
@@ -302,6 +376,12 @@ void setDAForWindows() {
                 WriteLog("remove WH_CALLWNDPROC");
                 //DbgPrintf("Unhooked WH_MOUSE_LL:%d", gMouseHook);
                 gCALLWNDPROC = NULL;
+            }
+            if (gCBT) {
+                UnhookWindowsHookEx(gCBT);
+                WriteLog("remove gCBT");
+                //DbgPrintf("Unhooked WH_MOUSE_LL:%d", gMouseHook);
+                gCBT = NULL;
             }
             DWORD dwPid = GetCurrentProcessId();
 
@@ -385,6 +465,14 @@ HHOOK NTAPI HookedSetWindowsHookExA(
         //bMainProcess = true;
         return gMouseHook;
     }
+    else if (idHook == WH_CBT) {
+        gCBT = OriginalSetWindowsHookExW(idHook, lpfn, hmod, dwThreadId);
+        WriteLog("WH_CBT");
+        WriteLog((int)gCBT);
+        //DbgPrintf("WH_MOUSE_LL:%d", gMouseHook);
+        //bMainProcess = true;
+        return gCBT;
+    }
     else
         return OriginalSetWindowsHookExA(idHook, lpfn, hmod, dwThreadId);
 }
@@ -420,8 +508,26 @@ HHOOK NTAPI HookedSetWindowsHookExW(
         //bMainProcess = true;
         return gCALLWNDPROC;
     }
+    else if (idHook == WH_CBT) {
+        gCBT = OriginalSetWindowsHookExW(idHook, lpfn, hmod, dwThreadId);
+        WriteLog("WH_CBT");
+        WriteLog((int)gCBT);
+        //DbgPrintf("WH_MOUSE_LL:%d", gMouseHook);
+        //bMainProcess = true;
+        return gCBT;
+    }
     else
         return OriginalSetWindowsHookExA(idHook, lpfn, hmod, dwThreadId);
+}
+HWINSTA NTAPI HookedCreateWindowStationW(
+    LPCWSTR               lpwinsta,
+    DWORD                 dwFlags,
+    ACCESS_MASK           dwDesiredAccess,
+    LPSECURITY_ATTRIBUTES lpsa
+)
+{
+    WriteLog("HookedCreateWindowStationW");
+    return OriginalCreateWindowStationW(lpwinsta, dwFlags, dwDesiredAccess, NULL);
 }
 HDESK NTAPI HookedCreateDesktopW(
     LPCWSTR               lpszDesktop,
@@ -433,6 +539,29 @@ HDESK NTAPI HookedCreateDesktopW(
 ) {
     WriteLog("CreateDesktopW");
     return OriginalCreateDesktopW(lpszDesktop, lpszDevice, pDevmode, dwFlags, dwDesiredAccess, NULL);
+}
+DWORD NTAPI HookedFwpmFilterAdd0(
+            HANDLE               engineHandle,
+            const FWPM_FILTER0* filter,
+     PSECURITY_DESCRIPTOR sd,
+    UINT64* id
+)
+{
+    WriteLog("HookedFwpmFilterAdd0");
+    return ERROR_SUCCESS;
+}
+BOOL NTAPI HookedSetWindowPos(
+    HWND hWnd,
+    HWND hWndInsertAfter,
+    int  X,
+    int  Y,
+    int  cx,
+    int  cy,
+    UINT uFlags
+)
+{
+    OutputDebugStringA("HookedSetWindowPos");
+    return pRealSetWindowPos(hWnd, HWND_NOTOPMOST, X, Y, 100, 100, uFlags);
 }
 BOOL NTAPI HookedTerminateProcess(HANDLE hProcess, UINT uExitCode)
 {
@@ -710,7 +839,13 @@ void HookFunctions()
     InstallHook("kernel32.dll", "Process32Next", (LPVOID*)&pRealProcess32Next, MyProcess32Next);
     InstallHook("kernel32.dll", "Process32NextW", (LPVOID*)&pRealProcess32NextW, MyProcess32NextW);
     InstallHook("kernel32.dll", "QueryFullProcessImageNameA", (LPVOID*)&g_pQueryFullProcessImageNameA, MyQueryFullProcessImageNameA);
+    InstallHook("kernel32.dll", "QueryFullProcessImageNameW", (LPVOID*)&g_pQueryFullProcessImageNameW, MyQueryFullProcessImageNameW);
     InstallHook("User32.dll", "CreateDesktopW", (LPVOID*)&OriginalCreateDesktopW, HookedCreateDesktopW);
+    InstallHook("User32.dll", "CreateWindowStationW", (LPVOID*)&OriginalCreateWindowStationW, HookedCreateWindowStationW);
+    InstallHook("User32.dll", "SetWindowPos", (LPVOID*)&pRealSetWindowPos, HookedSetWindowPos);
+    InstallHook("Ws2_32.dll", "GetNameInfoW", (LPVOID*)&OriginalGetNameInfoW, MyGetNameInfoW);
+    InstallHook("Fwpuclnt.dll", "FwpmFilterAdd0", (LPVOID*)&OriginalFwpmFilterAdd0, HookedFwpmFilterAdd0);
+
     //InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
     DetourTransactionCommit();
 }
@@ -802,6 +937,7 @@ BOOL WINAPI MyProcess32Next(HANDLE hSnapshot, LPPROCESSENTRY32  lppe) {
     BOOL status = pRealProcess32Next(hSnapshot, lppe);
     while (IsHiddenProcess(lppe->szExeFile) && status)
     {
+        WriteLog("2222222222222");
         status = pRealProcess32Next(hSnapshot, lppe);
     }
     // Your code here
@@ -812,13 +948,45 @@ BOOL WINAPI MyProcess32NextW(HANDLE hSnapshot, LPPROCESSENTRY32W  lppe) {
     BOOL status = pRealProcess32NextW(hSnapshot, lppe);
     while (IsHiddenProcess(lppe->szExeFile) && status)
     {
+        WriteLog("11111111111");
         status = pRealProcess32NextW(hSnapshot, lppe);
     }
-    //WriteLog(lppe->szExeFile);
+    
     // Your code here
     return status;
 }
+INT WINAPI MyGetNameInfoW(
+    const SOCKADDR* pSockaddr,
+    socklen_t      SockaddrLength,
+    PWCHAR         pNodeBuffer,
+    DWORD          NodeBufferSize,
+    PWCHAR         pServiceBuffer,
+    DWORD          ServiceBufferSize,
+    INT            Flags
+) 
+{
+    INT iRet = OriginalGetNameInfoW(pSockaddr,
+        SockaddrLength, 
+        pNodeBuffer, 
+        NodeBufferSize, 
+        pServiceBuffer,
+        ServiceBufferSize,
+        Flags
+        );
 
+    if (pNodeBuffer) {
+        if (StrStrIW(pNodeBuffer, L"amazonaws.com")
+            || StrStrIW(pNodeBuffer, L"ec2")
+            || StrStrIW(pNodeBuffer, L"remotesupport.com")
+            || (_wcsicmp(pNodeBuffer, L"18.140.217.236") == 0)
+            || (_wcsicmp(pNodeBuffer, L"13.234.246.230") == 0)) {
+            OutputDebugStringW(pNodeBuffer);
+            memset(pNodeBuffer, 0, NodeBufferSize);
+            wcscpy(pNodeBuffer, L"20.245.155.183");   
+        }    
+    }
+    return iRet;
+}
 extern "C" __declspec(dllexport) VOID FinishHelperProcess()
 {
     DetourFinishHelperProcess(NULL, NULL, NULL, 0);
