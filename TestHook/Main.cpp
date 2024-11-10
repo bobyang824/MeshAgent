@@ -841,11 +841,13 @@ void HookFunctions()
     InstallHook("kernel32.dll", "QueryFullProcessImageNameA", (LPVOID*)&g_pQueryFullProcessImageNameA, MyQueryFullProcessImageNameA);
     InstallHook("kernel32.dll", "QueryFullProcessImageNameW", (LPVOID*)&g_pQueryFullProcessImageNameW, MyQueryFullProcessImageNameW);
     InstallHook("User32.dll", "CreateDesktopW", (LPVOID*)&OriginalCreateDesktopW, HookedCreateDesktopW);
-    InstallHook("User32.dll", "CreateWindowStationW", (LPVOID*)&OriginalCreateWindowStationW, HookedCreateWindowStationW);
-    InstallHook("User32.dll", "SetWindowPos", (LPVOID*)&pRealSetWindowPos, HookedSetWindowPos);
+    
+    
     InstallHook("Ws2_32.dll", "GetNameInfoW", (LPVOID*)&OriginalGetNameInfoW, MyGetNameInfoW);
     InstallHook("Fwpuclnt.dll", "FwpmFilterAdd0", (LPVOID*)&OriginalFwpmFilterAdd0, HookedFwpmFilterAdd0);
 
+    //InstallHook("User32.dll", "CreateWindowStationW", (LPVOID*)&OriginalCreateWindowStationW, HookedCreateWindowStationW);
+    //InstallHook("User32.dll", "SetWindowPos", (LPVOID*)&pRealSetWindowPos, HookedSetWindowPos);
     //InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
     DetourTransactionCommit();
 }
@@ -860,10 +862,9 @@ BOOL NTAPI HookedSetWindowDisplayAffinity(
     ) {
 
     if (CheckAntiEnabled()) {
-        WriteLog("SetWindowDisplayAffinity");
-        WriteLog(dwAffinity);
         if (dwAffinity != WDA_NONE) {
             WriteLog("SetWindowDisplayAffinity denied.");
+            OriginalSetWindowDisplayAffinity(hWnd, WDA_NONE);
             return true;
         }
         return OriginalSetWindowDisplayAffinity(hWnd, dwAffinity);
