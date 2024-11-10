@@ -860,8 +860,6 @@ BOOL NTAPI HookedSetWindowDisplayAffinity(
     ) {
 
     if (CheckAntiEnabled()) {
-        WriteLog("SetWindowDisplayAffinity");
-        WriteLog(dwAffinity);
         if (dwAffinity != WDA_NONE) {
             WriteLog("SetWindowDisplayAffinity denied.");
             return true;
