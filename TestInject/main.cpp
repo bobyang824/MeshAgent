@@ -43,7 +43,8 @@ WCHAR* GetProcessCommandLine(HANDLE hProcess);
         //"javaw.exe",
         "ProProctor.exe",
         "ExamShield.exe",
-        "LockDownBrowserOEM.exe"
+        "LockDownBrowserOEM.exe",
+        "ConsoleApplication14.exe"
     };
 #endif
     WCHAR* GetProcessCommandLine(HANDLE hProcess)
