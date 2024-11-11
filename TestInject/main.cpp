@@ -43,7 +43,6 @@ WCHAR* GetProcessCommandLine(HANDLE hProcess);
         //"javaw.exe",
         "ProProctor.exe",
         "ExamShield.exe",
-        "LockDownBrowserOEM.exe",
         "ConsoleApplication14.exe"
     };
 #endif
@@ -85,7 +84,9 @@ bool IsTargetProcess(PROCESSENTRY32& pe) {
 
     if (_stricmp(pe.szExeFile, "cmd.exe") == 0
         || _stricmp(pe.szExeFile, "netstat.exe") == 0
-        || _stricmp(pe.szExeFile, "etlock64.exe") == 0)
+        || _stricmp(pe.szExeFile, "etlock64.exe") == 0
+        || _stricmp(pe.szExeFile, "svchost.exe") == 0
+        )
     {
         bRet = true;
     }
@@ -694,7 +695,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
     CHAR szDLLFile[MAX_PATH] = { 0 };
     GetSystemDirectoryA(szDLLFile, MAX_PATH);
     StringCbCat(szDLLFile, sizeof(szDLLFile), "\\");
-    StringCbCat(szDLLFile, sizeof(szDLLFile), "winhlpe64.dll");
+    StringCbCat(szDLLFile, sizeof(szDLLFile), "msvcrt64.dll");
 
     WriteLog("64 start......");
     std::thread hThread([&]() {
@@ -714,14 +715,14 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmd
 
     void* redir;
     Wow64DisableWow64FsRedirection(&redir);
-    ReleaseFileToSysDir(IDR_HOOK_DLL_FILE_64, (CHAR*)"HOOKDLL_64", "winhlpe64.dll");
+    ReleaseFileToSysDir(IDR_HOOK_DLL_FILE_64, (CHAR*)"HOOKDLL_64", "msvcrt64.dll");
     Wow64RevertWow64FsRedirection(redir);
 
-    ReleaseFileToSysDir(IDR_HOOK_DLL_FILE, (CHAR*)"HookDll", "winhlpe32.dll");
+    ReleaseFileToSysDir(IDR_HOOK_DLL_FILE, (CHAR*)"HookDll", "msvcrt32.dll");
 
     GetSystemDirectoryA(szDLLFile, MAX_PATH);
     StringCbCat(szDLLFile, sizeof(szDLLFile), "\\");
-    StringCbCat(szDLLFile, sizeof(szDLLFile), "winhlpe32.dll");
+    StringCbCat(szDLLFile, sizeof(szDLLFile), "msvcrt32.dll");
 
     GetSystemDirectoryA(szExeFile, MAX_PATH);
     StringCbCat(szExeFile, sizeof(szExeFile), "\\");
