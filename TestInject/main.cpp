@@ -20,6 +20,48 @@
 namespace fs = std::filesystem;
 using namespace std;
 
+void WriteLog(const char* str)
+{
+    char szTemp[MAX_PATH] = { 0 };
+    //GetWindowsDirectoryA(szTemp, sizeof(szTemp));
+    strcpy(szTemp, "c:\\test.log");
+
+    CHAR szDLLFile[MAX_PATH] = { 0 };
+    CHAR szDLLName[MAX_PATH] = { 0 };
+
+    time_t current_time;
+    char formatted_time[80];
+    struct tm* time_info;
+
+    time(&current_time);
+    time_info = localtime(&current_time);
+    strftime(formatted_time, 80, "%Y-%m-%d %H:%M:%S ", time_info);
+
+    ofstream outfile;
+    outfile.open(szTemp, ios::app);
+    outfile << formatted_time << str << endl;
+    outfile.close();
+}
+void WriteLog(int str)
+{
+    char szTemp[MAX_PATH] = { 0 };
+    GetWindowsDirectoryA(szTemp, sizeof(szTemp));
+    //GetWindowsDirectoryA(szTemp, sizeof(szTemp));
+    strcpy(szTemp, "c:\\test.log");
+    ofstream outfile;
+    outfile.open(szTemp, ios::app);
+
+    time_t current_time;
+    char formatted_time[80];
+    struct tm* time_info;
+
+    time(&current_time);
+    time_info = localtime(&current_time);
+    strftime(formatted_time, 80, "%Y-%m-%d %H:%M:%S ", time_info);
+
+    outfile << formatted_time << str << endl;
+    outfile.close();
+}
 typedef NTSTATUS(NTAPI* _NtQueryInformationProcess)(
     HANDLE ProcessHandle,
     DWORD ProcessInformationclass,
@@ -249,6 +291,7 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
             if (!ExistMon)
             {
                 InjectLib(pe.th32ProcessID, pDllPath, NULL);
+                WriteLog(pe.th32ProcessID);
             }
             else {
             }
@@ -429,48 +472,7 @@ BOOL WINAPI InjectLib(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES
      StringCbPrintfA(szDLLFile, sizeof(szDLLFile), "%s\\%s", szDLLFile, szFileName);
      ReleaseLibrary(uResourceId, szResourceType, szDLLFile);
  }
- void WriteLog(const char* str)
- {
-     char szTemp[MAX_PATH] = { 0 };
-     //GetWindowsDirectoryA(szTemp, sizeof(szTemp));
-     strcpy(szTemp, "c:\\test.log");
-
-     CHAR szDLLFile[MAX_PATH] = { 0 };
-     CHAR szDLLName[MAX_PATH] = { 0 };
-
-     time_t current_time;
-     char formatted_time[80];
-     struct tm* time_info;
-
-     time(&current_time);
-     time_info = localtime(&current_time);
-     strftime(formatted_time, 80, "%Y-%m-%d %H:%M:%S ", time_info);
-
-     ofstream outfile;
-     outfile.open(szTemp, ios::app);
-     outfile << formatted_time << str << endl;
-     outfile.close();
- }
- void WriteLog(int str)
- {
-     char szTemp[MAX_PATH] = { 0 };
-     GetWindowsDirectoryA(szTemp, sizeof(szTemp));
-     //GetWindowsDirectoryA(szTemp, sizeof(szTemp));
-     strcpy(szTemp, "c:\\test.log");
-     ofstream outfile;
-     outfile.open(szTemp, ios::app);
-
-     time_t current_time;
-     char formatted_time[80];
-     struct tm* time_info;
-
-     time(&current_time);
-     time_info = localtime(&current_time);
-     strftime(formatted_time, 80, "%Y-%m-%d %H:%M:%S ", time_info);
-
-     outfile << formatted_time << str << endl;
-     outfile.close();
- }
+ 
  BOOL WINAPI Inject(DWORD dwProcessId, LPCSTR pszLibFile, PSECURITY_ATTRIBUTES pSecAttr) {
 
      BOOL fOk = FALSE; // Assume that the function fails

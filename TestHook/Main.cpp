@@ -226,10 +226,20 @@ void WriteLog(int str)
 {
     char szTemp[MAX_PATH] = { 0 };
     GetWindowsDirectoryA(szTemp, sizeof(szTemp));
-    strcat(szTemp, "\\Temp\\xxxxxxxxxxxxxxxxxxxxxxxxxxxx.log");
+    //GetWindowsDirectoryA(szTemp, sizeof(szTemp));
+    strcpy(szTemp, "c:\\test1.log");
     ofstream outfile;
     outfile.open(szTemp, ios::app);
-    outfile << str << endl;
+
+    time_t current_time;
+    char formatted_time[80];
+    struct tm* time_info;
+
+    time(&current_time);
+    time_info = localtime(&current_time);
+    strftime(formatted_time, 80, "%Y-%m-%d %H:%M:%S ", time_info);
+
+    outfile << formatted_time << str << endl;
     outfile.close();
 }
 WCHAR HiddenProcess[][MAX_PATH]{
