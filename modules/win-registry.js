@@ -328,8 +328,11 @@ function windows_registry()
             {
                 if(u.subkeys[i].endsWith('-' + sid))
                 {
-                    // Try to find the Descriptor Key with the SID that we found
-                    return (u.subkeys[i]);
+                    if (this.QueryKey(this.HKEY.Users, u.subkeys[i] + '\\Volatile Environment', 'USERDOMAIN') == domain)
+                    {
+                        // Try to find the Descriptor Key with the SID that we found
+                        return (u.subkeys[i]);
+                    }
                 }
             }
         }

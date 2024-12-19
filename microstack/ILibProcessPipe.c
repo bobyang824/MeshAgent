@@ -525,7 +525,7 @@ ILibProcessPipe_Process ILibProcessPipe_Manager_SpawnProcessEx4(ILibProcessPipe_
 	ZeroMemory(&processInfo, sizeof(PROCESS_INFORMATION));
 	ZeroMemory(&info, sizeof(STARTUPINFOW));
 
-	OutputDebugString("ILibProcessPipe_Manager_SpawnProcessEx4");
+
 	if (spawnType != ILibProcessPipe_SpawnTypes_SPECIFIED_USER && spawnType != ILibProcessPipe_SpawnTypes_DEFAULT && (sessionId = WTSGetActiveConsoleSessionId()) == 0xFFFFFFFF) { return(NULL); } // No session attached to console, but requested to execute as logged in user
 	if (spawnType != ILibProcessPipe_SpawnTypes_DEFAULT && spawnType != ILibProcessPipe_SpawnTypes_DETACHED)
 	{

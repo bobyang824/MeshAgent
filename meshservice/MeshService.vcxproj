@@ -562,7 +562,7 @@ powershell -ExecutionPolicy Unrestricted $(ProjectDir)prebuild.ps1 $(ProjectDir)
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Comctl32.lib;SetupAPI.lib;DbgHelp.lib;Iphlpapi.lib;ws2_32.lib;Setupapi.lib;Psapi.lib;Crypt32.lib;Wintrust.lib;Version.lib;Wtsapi32.lib;Gdiplus.lib;Winhttp.lib;Ncrypt.lib;..\openssl\libstatic\libcrypto64MT.lib;..\openssl\libstatic\libssl64MT.lib;Shlwapi.lib;Userenv.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Userenv.lib;Comctl32.lib;SetupAPI.lib;DbgHelp.lib;Iphlpapi.lib;ws2_32.lib;Setupapi.lib;Psapi.lib;Crypt32.lib;Wintrust.lib;Version.lib;Wtsapi32.lib;Gdiplus.lib;Winhttp.lib;Ncrypt.lib;..\openssl\libstatic\libcrypto64MT.lib;..\openssl\libstatic\libssl64MT.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>

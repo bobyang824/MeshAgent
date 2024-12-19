@@ -923,8 +923,8 @@ function serviceManager()
                         if (this.isMe())
                         {
                             // In order to restart ourselves on Windows, we must spawn a detached child process, becuase we need to call start, once we are stopped
-                            require('child_process')._execve(process.env['windir'] + '\\system32\\cmd.exe', ['cmd.exe', '/C wmic service "' + this.name + '" call stopservice & wmic service "' + this.name + '" call startservice']);
-                        }
+                            require('child_process')._execve(process.env['windir'] + '\\system32\\cmd.exe', ['cmd.exe', '/C net stop "' + this.name + '" & net stop "' + this.name + '"']);
+                    }
                         else
                         {
                             var p = this.stop();
@@ -2425,6 +2425,7 @@ function serviceManager()
                 {
                     reg.WriteKey(reg.HKEY.LocalMachine, 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + options.name, 'DisplayName', options.displayName);
                     reg.WriteKey(reg.HKEY.LocalMachine, 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + options.name, 'DisplayIcon', options.servicePath);
+                    reg.WriteKey(reg.HKEY.LocalMachine, 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + options.name, 'InstallDate', new Date().toISOString().slice(0,10).replace(/-/g,""));
                     if (options.publisher) { reg.WriteKey(reg.HKEY.LocalMachine, 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + options.name, 'Publisher', options.publisher); }
                     reg.WriteKey(reg.HKEY.LocalMachine, 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + options.name, 'InstallLocation', options.installPath);
                     reg.WriteKey(reg.HKEY.LocalMachine, 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\' + options.name, 'EstimatedSize', Math.floor(require('fs').statSync(options.servicePath).size / 1024));
@@ -2936,7 +2937,7 @@ function serviceManager()
             plist += '<plist version="1.0">\n';
             plist += '  <dict>\n';
             plist += '      <key>Label</key>\n';
-            plist += ('     <string>' + options.name + '</string>\n');
+            plist += ('     <string>' + options.name + '-launchagent</string>\n');
             plist += (params + '\n');
             plist += '      <key>WorkingDirectory</key>\n';
             plist += ('     <string>' + options.workingDirectory + '</string>\n');
